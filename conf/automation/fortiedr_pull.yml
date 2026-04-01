@@ -1,0 +1,5 @@
+FortiEDR_Pull:
+  automation:
+    pull_fortiedr_events:
+      task: FortiEDR.allEvents2Alerts
+      timerange: 60

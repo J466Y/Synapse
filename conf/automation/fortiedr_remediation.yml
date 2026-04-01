@@ -1,0 +1,12 @@
+FortiEDR_Remediation:
+  automation:
+    isolate_device:
+      task: FortiEDR.isolateDevice
+      device: "{{observable}}"
+    unisolate_device:
+      task: FortiEDR.unisolateDevice
+      device: "{{observable}}"
+    remediate_device:
+      task: FortiEDR.remediateDevice
+      device: "{{observable}}"
+      process_id: 0
