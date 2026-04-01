@@ -33,3 +33,4 @@ werkzeug==2.0.1
 PyYAML
 redis==3.3.8
 pytest==4.3.1
+fortiedr
