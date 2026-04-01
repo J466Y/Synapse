@@ -1,0 +1,28 @@
+# FortiEDR Automation Examples
+# This file contains sample automation rules for FortiEDR integration with Synapse
+
+FortiEDR_Pull_Events:
+  automation:
+    pull_events:
+      task: FortiEDR.allEvents2Alerts
+      timerange: 60
+
+FortiEDR_Remediation:
+  automation:
+    isolate_device:
+      task: FortiEDR.isolateDevice
+      collector_id: "{{collector_id}}"
+    
+    unisolate_device:
+      task: FortiEDR.unisolateDevice
+      collector_id: "{{collector_id}}"
+    
+    remediate_device:
+      task: FortiEDR.remediateDevice
+      collector_id: "{{collector_id}}"
+      process_id: "{{process_id}}"
+
+FortiEDR_Status_Sync:
+  automation:
+    sync_status:
+      task: FortiEDR.automation
