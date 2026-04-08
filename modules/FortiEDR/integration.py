@@ -149,29 +149,6 @@ class Integration(Main):
         """
         if request.is_json:
             content = request.get_json()
-            
-            # Check for target (automation or automator)
-            target = request.args.get('target')
-            
-            if target == 'automation':
-                from modules.FortiEDR.automation import Automation
-                automation = Automation()
-                success, message = automation.parse_hooks(self.cfg, content)
-                return json.dumps({'success': success, 'message': message}), (200 if success else 500)
-            
-            elif target == 'automator':
-                from modules.FortiEDR.automator import Automator
-                automator = Automator()
-                # Determine which task to run from the request or config
-                task_name = request.args.get('task')
-                if hasattr(automator, str(task_name)):
-                    task_func = getattr(automator, str(task_name))
-                    success, message = task_func(self.cfg, content)
-                    return json.dumps({'success': success, 'message': message}), (200 if success else 500)
-                else:
-                    return json.dumps({'success': False, 'message': f"Task {task_name} not found in Automator"}), 404
-
-            # Default: pull events
             if 'timerange' in content:
                 workflowReport = self.allEvents2Alerts(content['timerange'])
                 if workflowReport['success']:
