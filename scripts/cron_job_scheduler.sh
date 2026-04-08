@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CRON_JOB="*/20 * * * * /usr/bin/python3 /home/operador/scripts/synapse_syn_cron_launcher.py >> /var/log/synapse_sync.log 2>&1"
+CRON_JOB="*/20 * * * * /usr/bin/python3 /opt/Synapse/scripts/synapse_syn_cron_launcher.py >> /var/log/synapse_sync.log 2>&1"
 TMP_FILE=$(mktemp)
 
 # Dump del crontab actual
