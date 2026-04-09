@@ -152,12 +152,73 @@ class FortiEDRConnector:
         self.logger.info('Remediating device: %s', device)
         try:
             forensics_api = fortiedr.Forensics()
-            # fortiedr.py requires terminatedProcessId
-            # If not provided, we might need a default or a way to discover it.
-            # For now, following the user's simplified request structure.
             pid = process_id if process_id else 0
             result = forensics_api.remediate_device(terminatedProcessId=pid, device=device, organization=self.organization)
             return result
         except Exception as e:
             self.logger.error('Failed to remediate device %s: %s', device, e, exc_info=True)
+            return {'status': False, 'data': str(e)}
+
+    def resolve_event(self, event_id):
+        """
+        Mark a security event as handled in FortiEDR
+        :param event_id: The event ID to resolve
+        """
+        self.logger.info('Resolving event: %s', event_id)
+        try:
+            events_api = fortiedr.Events()
+            result = events_api.insert_events(eventIds=[event_id], handle=True, organization=self.organization)
+            return result
+        except Exception as e:
+            self.logger.error('Failed to resolve event %s: %s', event_id, e, exc_info=True)
+            return {'status': False, 'data': str(e)}
+
+    def get_event_details(self, event_id):
+        """
+        Retrieve details for a specific event to extract collectorId and processId
+        :param event_id: The event ID to fetch
+        """
+        self.logger.debug('Fetching details for event: %s', event_id)
+        try:
+            events_api = fortiedr.Events()
+            result = events_api.list_events(eventIds=[event_id], organization=self.organization)
+            if result['status'] and result['data']:
+                # The result data is usually a list
+                event = result['data'][0] if isinstance(result['data'], list) else result['data'].get('events', [None])[0]
+                return {'status': True, 'data': event}
+            return result
+        except Exception as e:
+            self.logger.error('Failed to fetch event details for %s: %s', event_id, e, exc_info=True)
+            return {'status': False, 'data': str(e)}
+
+    def create_exception(self, event_id, scoped=False):
+        """
+        Create an exception for a security event
+        :param event_id: The event ID to except
+        :param scoped: If True, scope exception to current event context. If False, make it global.
+        """
+        self.logger.info('Creating %s exception for event: %s', 'scoped' if scoped else 'global', event_id)
+        try:
+            events_api = fortiedr.Events()
+            params = {
+                'eventId': event_id,
+                'organization': self.organization,
+                'comment': 'Created via Synapse'
+            }
+            
+            if not scoped:
+                # Global exception: all flags True
+                params['allCollectorGroups'] = True
+                params['allDestinations'] = True
+                params['allUsers'] = True
+            else:
+                # Scoped exception: rely on default event scoping
+                params['allCollectorGroups'] = False
+                params['allDestinations'] = False
+                params['allUsers'] = False
+                
+            result = events_api.create_exception(**params)
+            return result
+        except Exception as e:
+            self.logger.error('Failed to create exception for event %s: %s', event_id, e, exc_info=True)
             return {'status': False, 'data': str(e)}

@@ -17,6 +17,7 @@ The current features that are implemented at the moment are:
       * QRadar
       * Elasticsearch (Logstash output, Watcher alerts)
       * EWS (Reading E-mails from a mailbox)
+      * FortiEDR (Event pull and bidirectional sync)
    * Automation
       * Tag based automation
    * Automation Tasks
@@ -30,6 +31,11 @@ The current features that are implemented at the moment are:
          * Send notifications to a channel
       * Teams
          * Send notifications to a channel
+      * FortiEDR
+         * Mark events as Handled in sync with TheHive
+         * Host Isolation (Tag-driven)
+         * Process Remediation/Termination (Tag-driven)
+         * Advanced Exception Management (Global/Targeted)
       
 
 
@@ -59,6 +65,15 @@ Have a look at the detailed [user guide](docs/user_guide.md), but in short:
    3. Execute: ```python3 app.py```
 
 While all OS running python3 can be used for Synapse, we recommend the use of Ubuntu.   
+
+### FortiEDR Guide
+To use the FortiEDR integration, ensure your `synapse.conf` contains the `[FortiEDR]` section.
+Automation can be triggered by adding tags to cases in TheHive:
+- `fc-isolate-host`: Isolate the endpoint.
+- `fc-remediate-process`: Terminate the malicious process.
+- `fc-global-exception`: Create a global exception.
+- `fc-targeted-exception`: Create an event-scoped exception.
+- **Auto-Sync**: Resolving a Case in TheHive automatically marks the FortiEDR event as "Handled".
 
 ## Roadmap
 

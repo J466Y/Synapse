@@ -798,6 +798,80 @@ class Webhook:
         """
             Check if the webhook describes a case is updated with a user assignment
 
+            :return: True if it is a case assignment, False if not
+            :rtype: boolean
+        """
+
+        self.logger.debug('%s.isCaseAssigned starts', __name__)
+
+        if (self.isCase() and self.isUpdate() and self.data['details'].get('assignee') is not None):
+            return True
+        else:
+            return False
+
+    def isFortiEDR(self):
+        """
+            Check if the webhook describes a FortiEDR event
+        """
+        self.logger.debug('%s.isFortiEDR starts', __name__)
+        if ('tags' in self.data['details'] and 'FortiEDR' in self.data['details']['tags']) or ('tags' in self.data['object'] and 'FortiEDR' in self.data['object']['tags']):
+            return True
+        return False
+
+    def isClosedFortiEDRCase(self):
+        """
+            Check if the webhook describes a closing FortiEDR case
+        """
+        self.logger.debug('%s.isClosedFortiEDRCase starts', __name__)
+        try:
+            if self.isFortiEDR() and self.isCase() and self.isClosed():
+                case_id = self.data['objectId']
+                if self.fromFortiEDR(case_id):
+                    return True
+            return False
+        except Exception:
+            self.logger.error('%s.isClosedFortiEDRCase failed', __name__, exc_info=True)
+            return False
+
+    def isIsolateFortiEDRHost(self):
+        """
+            Check if the webhook describes an isolation request for FortiEDR
+        """
+        self.logger.debug('%s.isIsolateFortiEDRHost starts', __name__)
+        if self.isFortiEDR() and any('fc-isolate-host' in tag for tag in self.data.get('details', {}).get('tags', [])):
+            return self.fromFortiEDR(self.data['objectId'])
+        return False
+
+    def isExceptionFortiEDR(self):
+        """
+            Check if the webhook describes an exception request for FortiEDR
+        """
+        self.logger.debug('%s.isExceptionFortiEDR starts', __name__)
+        tags = self.data.get('details', {}).get('tags', [])
+        if self.isFortiEDR() and any('fc-global-exception' in tag or 'fc-targeted-exception' in tag for tag in tags):
+            return self.fromFortiEDR(self.data['objectId'])
+        return False
+
+    def fromFortiEDR(self, case_id):
+        """
+            Search if the case has been opened from a FortiEDR alert
+        """
+        if self.isFromAlert(case_id):
+            if hasattr(self, 'alert') and self.alert['source'] == 'FortiEDR':
+                self.ext_alert_id = self.alert['sourceRef']
+                return True
+            elif hasattr(self, 'alerts'):
+                for alert in self.alerts:
+                    if alert['source'] == 'FortiEDR':
+                        self.ext_alert_ids.append(alert['sourceRef'])
+                if len(self.ext_alert_ids) > 0:
+                    return True
+        return False
+
+    def isOwnerAssigned(self):
+        """
+            Check if the webhook describes a case is updated with a user assignment
+
             :return: True if the conditions are matched, False if not
             :rtype: boolean
         """

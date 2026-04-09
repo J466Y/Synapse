@@ -68,15 +68,32 @@ class Integration(Main):
         if path:
             artifacts.append({'data': path, 'dataType': 'file', 'message': 'Process Path', 'tags': ['FortiEDR']})
 
-        # Rule Name & Tags
+        # Rules and Tags
         tags = ['FortiEDR']
-        # rules is a list in the raw data
         rules = event.get('rules', [])
         if rules and isinstance(rules, list):
             rule = rules[0]
             enriched['automation_identifiers'] = [rule]
             automation_tags = self.getAutomationTags([rule])
             tags.extend(automation_tags)
+
+        # Additional Observables from exhaustive list
+        # Destinations
+        destinations = event.get('destinations', [])
+        if destinations and isinstance(destinations, list):
+            for dest in destinations:
+                artifacts.append({'data': dest, 'dataType': 'ip', 'message': 'Communication Destination', 'tags': ['FortiEDR']})
+
+        # Logged Users
+        logged_users = event.get('loggedUsers', [])
+        if logged_users and isinstance(logged_users, list):
+            for user in logged_users:
+                artifacts.append({'data': user, 'dataType': 'user', 'message': 'Logged User', 'tags': ['FortiEDR']})
+
+        # Process Owner
+        process_owner = event.get('processOwner')
+        if process_owner:
+            artifacts.append({'data': process_owner, 'dataType': 'user', 'message': 'Process Owner', 'tags': ['FortiEDR']})
 
         # Remove observables that are to be excluded based on the configuration
         artifacts = self.checkObservableExclusionList(artifacts)
@@ -130,13 +147,27 @@ class Integration(Main):
         rule = rules[0] if rules else 'N/A'
 
         description += f"* **ID:** {event.get('eventId')}\n"
-        description += f"* **Device:** {device}\n"
-        description += f"* **IP:** {device_ip}\n"
-        description += f"* **Process:** {event.get('process', 'N/A')}\n"
+        description += f"* **Device:** {device} (Group: {collectors[0].get('collectorGroup', 'N/A') if collectors else 'N/A'})\n"
+        description += f"* **IP:** {device_ip} (OS: {collectors[0].get('os', 'Unknown') if collectors else 'Unknown'})\n"
+        description += f"* **Process:** {event.get('process', 'N/A')} ({event.get('processType', 'N/A')})\n"
+        description += f"* **Path:** {event.get('processPath', 'N/A')}\n"
+        description += f"* **Certified:** {'Yes' if event.get('certified') else 'No'}\n"
+        description += f"* **Owner:** {event.get('processOwner', 'N/A')}\n"
         description += f"* **Severity:** {event.get('severity')}\n"
         description += f"* **Classification:** {event.get('classification', 'N/A')}\n"
+        description += f"* **Action:** {event.get('action', 'N/A')}\n"
         description += f"* **Rule:** {rule}\n"
+        
+        threat_family = event.get('threatFamily') or (event.get('threatDetails', {}).get('threatFamily') if isinstance(event.get('threatDetails'), dict) else 'N/A')
+        threat_type = event.get('threatType') or (event.get('threatDetails', {}).get('threatType') if isinstance(event.get('threatDetails'), dict) else 'N/A')
+        threat_name = event.get('threatName') or (event.get('threatDetails', {}).get('threatName') if isinstance(event.get('threatDetails'), dict) else 'N/A')
+        
+        description += f"* **Threat Family:** {threat_family}\n"
+        description += f"* **Threat Type:** {threat_type}\n"
+        description += f"* **Threat Name:** {threat_name}\n"
         description += f"* **Last Seen:** {event.get('lastSeen', 'N/A')}\n"
+        description += f"* **First Seen:** {event.get('firstSeen', 'N/A')}\n"
+        description += f"* **Handled:** {'Yes' if event.get('handled') else 'No'}\n"
 
         # Build TheHive alert using craftAlert
         alert = self.theHiveConnector.craftAlert(

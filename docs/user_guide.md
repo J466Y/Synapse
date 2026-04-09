@@ -87,6 +87,14 @@ TheHive:
   url: http://127.0.0.1:9000
   user: synapse
   api_key: r4n0O8SvEll/VZdOD8r0hZneOWfOmth6
+
+FortiEDR:
+  url: https://your-manager.fortiedr.com
+  username: your-user
+  password: your-password
+  organization: YourOrg
+  # timerange in minutes for alert polling
+  timerange: 60
 ```
 
 Basic configuration for Synapse is done.   
