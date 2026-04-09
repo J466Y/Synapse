@@ -35,3 +35,4 @@ redis==3.3.8
 pytest==4.3.1
 fortiedr
 msal==1.6.0
+darktrace-sdk
