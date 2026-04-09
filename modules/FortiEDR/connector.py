@@ -56,7 +56,7 @@ class FortiEDRConnector:
             self.logger.error('Unexpected error during FortiEDR authentication: %s', e, exc_info=True)
             return {'status': False, 'data': str(e)}
 
-    def list_events(self, timerange_minutes=None):
+    def list_events(self, timerange_minutes=1440):
         """
         Fetch recent security events
         :param timerange_minutes: range in minutes to fetch events for
@@ -74,8 +74,8 @@ class FortiEDRConnector:
                 now = datetime.now(timezone.utc)
                 start_time = now - timedelta(minutes=timerange_minutes)
                 
-                params['firstSeenFrom'] = start_time.strftime('%Y-%m-%d %H:%M:%S')
-                params['firstSeenTo'] = now.strftime('%Y-%m-%d %H:%M:%S')
+                params['lastSeenFrom'] = start_time.strftime('%Y-%m-%d %H:%M:%S')
+                params['lastSeenTo'] = now.strftime('%Y-%m-%d %H:%M:%S')
                 
             result = events_api.list_events(**params)
             return result

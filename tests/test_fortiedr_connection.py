@@ -3,11 +3,9 @@ import os
 import logging
 from datetime import datetime
 
-# Add Synapse and fortiedr to sys.path
-synapse_dir = r"localsynapsefolder"
-fortiedr_dir = r"localfortiedrfolder"
+# Add Synapse to sys.path
+synapse_dir = "/opt/Synapse"
 sys.path.append(synapse_dir)
-sys.path.append(fortiedr_dir)
 
 from core.functions import getConf
 from modules.FortiEDR.connector import FortiEDRConnector
@@ -31,8 +29,8 @@ def test_connection():
             print(f"[-] Authentication FAILED: {auth_result['data']}")
             return
 
-        print("[*] Testing list_events (last 60 minutes)...")
-        events_result = connector.list_events(60)
+        print("[*] Testing list_events (last 120 minutes)...")
+        events_result = connector.list_events(120)
         if events_result['status']:
             events = events_result['data']
             print(f"[+] Successfully fetched {len(events)} events")
