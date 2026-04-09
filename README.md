@@ -85,21 +85,44 @@ Synapse now supports full bidirectional synchronization for QRadar:
 
 ## Roadmap
 
-   * Alert creation from QRadar offense
-   * Closing QRadar offense after closing TheHive case or alert
-   * Scheduler to periodically execute workflows
+### Phase 1: Validate Current Integrations
+- [ ] 1. Verify FortiEDR + QRadar bidirectional integration in lab environment
+
+### Phase 2: Cortex Enrichment
+- [ ] 2. Remove MISP alert ingestion from TheHive (reduce noise)
+- [ ] 3. Integrate Analyzers into Cortex (AbuseIPDB, Censys, OTX, VirusTotal)
+- [ ] 4. Add MISP integration to Cortex (IOC correlation, not alert ingestion)
+- [ ] 5. Configure Cortex Auto-Run for automatic observable enrichment
+
+### Phase 3: Automated Response
+- [ ] 6. Study and analyze existing Cortex Responders (avoid reinventing the wheel)
+- [ ] 7. Evaluate creating a custom Synapse Responder for Cortex
+- [ ] 8. Implement or adapt Responder(s) for Synapse actions
+- [ ] 9. Develop YAML-based playbooks for automated response chains
+
+### Phase 4: Optimization & New Integrations
+- [ ] 10. Optimize playbooks and general performance
+- [ ] 11. Validate the full automated cycle (detect → enrich → respond)
+- [ ] 12. Create Darktrace module in Synapse (ingestion + response)
+- [ ] 13. Create FortiGate module in Synapse (dynamic firewall rules)
+
+### Future / Optional
+- [ ] 14. Create or Integrate a YAML based playbook editor for creating playbooks in a more easy way.
 
 ## Special thanks
 Kudos to ninsmith for creating the first version of Synapse of which this enhanced version has been built
 
-Kudos to everyone who has showed me how they use tools around The Hive to enrich and automate their alerts and processes.
-It is very hard to remember pieces of code I received from various people. If you recognize your code and would like to be mentioned. Please let me know!
+Kudos to Jeffrey-e for creating the fork on which this project is based. Check his projects [here](https://github.com/jeffrey-e)
 
 Kudos to Erik Cederstrand for his amazing work on Exchangelib.   
 Check his others projects [here](https://github.com/ecederstrand).   
 
 Kudos to IBM teams for providing a python QRadar API client to the community.   
-Check it [here](https://github.com/ibm-security-intelligence/api-samples).   
+Check it [here](https://github.com/ibm-security-intelligence/api-samples).  
+
+Kudos to rafaelfoster who created a python FortiEDR API client Check it [here](https://github.com/rafaelfoster/fortiedr)
+
+Kudos to LegendEvent who created a python Darktrace API client Check it [here](https://github.com/LegendEvent/darktrace-sdk)
 
 ## Python naming convention
 https://www.python.org/dev/peps/pep-0008/#package-and-module-names
