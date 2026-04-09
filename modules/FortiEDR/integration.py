@@ -34,21 +34,24 @@ class Integration(Main):
 
         # Extract observables based on common FortiEDR fields
         # Device / Hostname
-        device = event.get('device')
-        if device:
-            artifacts.append({'data': device, 'dataType': 'hostname', 'message': 'Endpoint Name', 'tags': ['FortiEDR']})
+        collectors = event.get('collectors', [])
+        if collectors and isinstance(collectors, list):
+            device = collectors[0].get('device')
+            if device:
+                artifacts.append({'data': device, 'dataType': 'hostname', 'message': 'Endpoint Name', 'tags': ['FortiEDR']})
 
-        # Device IP
-        device_ip = event.get('deviceIp')
-        if device_ip:
-            artifacts.append({'data': device_ip, 'dataType': 'ip', 'message': 'Endpoint IP', 'tags': ['FortiEDR']})
+            # Device IP
+            device_ip = collectors[0].get('ip')
+            if device_ip:
+                artifacts.append({'data': device_ip, 'dataType': 'ip', 'message': 'Endpoint IP', 'tags': ['FortiEDR']})
 
         # Process / File Name
         process = event.get('process')
         if process:
             artifacts.append({'data': process, 'dataType': 'filename', 'message': 'Process Name', 'tags': ['FortiEDR']})
 
-        # File Hash
+        # File Hash - Not directly available in top-level keys seen in test, 
+        # but leaving if it might appear in other event types or subfields.
         file_hash = event.get('fileHash')
         if file_hash:
             data_type = 'hash'
@@ -61,14 +64,16 @@ class Integration(Main):
             artifacts.append({'data': file_hash, 'dataType': data_type, 'message': 'Process File Hash', 'tags': ['FortiEDR']})
 
         # Process Path
-        path = event.get('path')
+        path = event.get('processPath')
         if path:
             artifacts.append({'data': path, 'dataType': 'file', 'message': 'Process Path', 'tags': ['FortiEDR']})
 
         # Rule Name & Tags
         tags = ['FortiEDR']
-        rule = event.get('rule')
-        if rule:
+        # rules is a list in the raw data
+        rules = event.get('rules', [])
+        if rules and isinstance(rules, list):
+            rule = rules[0]
             enriched['automation_identifiers'] = [rule]
             automation_tags = self.getAutomationTags([rule])
             tags.extend(automation_tags)
@@ -116,27 +121,35 @@ class Integration(Main):
         
         # Description
         description = "### FortiEDR Security Event\n\n"
-        description += f"* **ID:** {event.get('id')}\n"
-        description += f"* **Device:** {event.get('device')}\n"
-        description += f"* **IP:** {event.get('deviceIp', 'N/A')}\n"
+        
+        # Extract device and IP from collectors list
+        collectors = event.get('collectors', [])
+        device = collectors[0].get('device', 'Unknown') if collectors else 'Unknown'
+        device_ip = collectors[0].get('ip', 'N/A') if collectors else 'N/A'
+        rules = event.get('rules', [])
+        rule = rules[0] if rules else 'N/A'
+
+        description += f"* **ID:** {event.get('eventId')}\n"
+        description += f"* **Device:** {device}\n"
+        description += f"* **IP:** {device_ip}\n"
         description += f"* **Process:** {event.get('process', 'N/A')}\n"
         description += f"* **Severity:** {event.get('severity')}\n"
         description += f"* **Classification:** {event.get('classification', 'N/A')}\n"
-        description += f"* **Rule:** {event.get('rule', 'N/A')}\n"
-        description += f"* **First Seen:** {event.get('firstSeen', 'N/A')}\n"
+        description += f"* **Rule:** {rule}\n"
+        description += f"* **Last Seen:** {event.get('lastSeen', 'N/A')}\n"
 
         # Build TheHive alert using craftAlert
         alert = self.theHiveConnector.craftAlert(
-            title=f"FortiEDR: {event.get('classification', 'Security Event')} on {event.get('device', 'Unknown Device')}",
+            title=f"FortiEDR: {event.get('classification', 'Security Event')} on {device}",
             description=description,
             severity=severity,
-            date=event.get('firstSeen', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
+            date=event.get('lastSeen', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
             tags=event.get('tags', ['FortiEDR']),
             tlp=int(self.cfg.get('Automation', 'default_observable_tlp', fallback=2)),
             status='New',
             type='FortiEDR Alert',
             source='FortiEDR',
-            sourceRef=str(event.get('id')),
+            sourceRef=str(event.get('eventId')),
             artifacts=event.get('artifacts', []),
             caseTemplate=case_template
         )
@@ -181,26 +194,27 @@ class Integration(Main):
             events = events.get('events', [])
             
         for event in events:
-            event_report = {'event_id': event.get('id'), 'success': True}
+            event_id = event.get('eventId')
+            event_report = {'event_id': event_id, 'success': True}
             
             # Deduplication: check if alert already exists
-            query = {'sourceRef': str(event.get('id')), 'source': 'FortiEDR'}
+            query = {'sourceRef': str(event_id), 'source': 'FortiEDR'}
             results = self.theHiveConnector.findAlert(query)
             
             if len(results) == 0:
-                self.logger.info('Event %s not found in TheHive, creating alert', event.get('id'))
+                self.logger.info('Event %s not found in TheHive, creating alert', event_id)
                 try:
                     enriched = self.enrichEvent(event)
                     alert = self.fortiedrEventToHiveAlert(enriched)
                     created_alert = self.theHiveConnector.createAlert(alert)
                     event_report['raised_alert_id'] = created_alert['id']
                 except Exception as e:
-                    self.logger.error('Failed to create alert for event %s: %s', event.get('id'), e, exc_info=True)
+                    self.logger.error('Failed to create alert for event %s: %s', event_id, e, exc_info=True)
                     event_report['success'] = False
                     event_report['message'] = str(e)
                     report['success'] = False
             else:
-                self.logger.info('Event %s already imported as alert, skipping', event.get('id'))
+                self.logger.info('Event %s already imported as alert, skipping', event_id)
                 event_report['message'] = 'Already imported'
                 
             report['events'].append(event_report)
