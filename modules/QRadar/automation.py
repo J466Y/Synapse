@@ -26,6 +26,42 @@ class Automation():
         self.cfg = cfg
         self.report_action = report_action
 
+    def _get_closing_reason(self, fallback_key='closing_reason_id'):
+        """
+        Extract closing reason ID from tags (e.g., 'qc:304').
+        If no tag is found, fallback to the specified configuration key.
+        """
+        tags = []
+        if 'details' in self.webhook.data and 'tags' in self.webhook.data['details']:
+            tags = self.webhook.data['details']['tags']
+        elif 'object' in self.webhook.data and 'tags' in self.webhook.data['object']:
+            tags = self.webhook.data['object']['tags']
+            
+        for tag in tags:
+            # 1. Descriptive Tag - e.g., qr-reason:FalsePositive
+            if tag.startswith('qr-reason:'):
+                try:
+                    reason_name = tag.split(':')[1]
+                    reasons_map = self.cfg.get('QRadar', 'closing_reasons_map', fallback={})
+                    if reason_name in reasons_map:
+                        reason_id = int(reasons_map[reason_name])
+                        logger.info(f"Mapped descriptive tag '{tag}' to reason ID: {reason_id}")
+                        return reason_id
+                except (ValueError, IndexError, TypeError):
+                    continue
+
+            # 2. Legacy/Direct Tag - e.g., qc:304
+            elif tag.startswith('qc:'):
+                try:
+                    reason_id = int(tag.split(':')[1])
+                    logger.info(f"Found direct closing reason ID in tags: {reason_id}")
+                    return reason_id
+                except (ValueError, IndexError):
+                    continue
+        
+        # Fallback to configured default
+        return self.cfg.get('QRadar', fallback_key, fallback=304)
+
     def checkIfInClosedCaseOrAlertMarkedAsRead(self, sourceref):
         query = dict()
         query['sourceRef'] = str(sourceref)
@@ -61,7 +97,9 @@ class Automation():
             if closure_info:
                 logger.info('Qradar offense({}) is linked to a closed case'.format(self.offense_id))
                 # Close incident and continue with the next incident
-                self.QRadarConnector.closeOffense(self.offense_id)
+                # Close incident and continue with the next incident
+                reason_id = self._get_closing_reason()
+                self.QRadarConnector.closeOffense(self.offense_id, closing_reason_id=reason_id)
 
         # Close offenses in QRadar
         if self.webhook.isClosedQRadarCase() or self.webhook.isDeletedQRadarCase() or self.webhook.isQRadarAlertMarkedAsRead():
@@ -72,7 +110,8 @@ class Automation():
             elif self.webhook.data['objectType'] == 'alert':
                 self.alert_id = self.webhook.data['objectId']
                 logger.info('Alert {} has been marked as read'.format(self.alert_id))
-                self.QRadarConnector.closeOffense(self.webhook.data['object']['sourceRef'])
+                reason_id = self._get_closing_reason(fallback_key='ignored_closing_reason_id')
+                self.QRadarConnector.closeOffense(self.webhook.data['object']['sourceRef'], closing_reason_id=reason_id)
 
             else:
                 self.case_id = self.webhook.data['object']['id']
@@ -81,14 +120,16 @@ class Automation():
             if hasattr(self, 'case_id'):
                 if hasattr(self.webhook, 'ext_alert_id'):
                     logger.info("Closing offense {} for case {}".format(self.webhook.ext_alert_id, self.case_id))
-                    self.QRadarConnector.closeOffense(self.webhook.ext_alert_id)
+                    reason_id = self._get_closing_reason()
+                    self.QRadarConnector.closeOffense(self.webhook.ext_alert_id, closing_reason_id=reason_id)
 
                 elif len(self.webhook.ext_alert_ids) > 0:
                     # Close offense for every linked offense
                     logger.info("Found multiple offenses {} for case {}".format(self.webhook.ext_alert_ids, self.case_id))
                     for offense_id in self.webhook.ext_alert_ids:
                         logger.info("Closing offense {} for case {}".format(offense_id, self.case_id))
-                        self.QRadarConnector.closeOffense(offense_id)
+                        reason_id = self._get_closing_reason()
+                        self.QRadarConnector.closeOffense(offense_id, closing_reason_id=reason_id)
 
             self.report_action = 'closeOffense'
 

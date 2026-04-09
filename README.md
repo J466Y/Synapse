@@ -20,6 +20,7 @@ The current features that are implemented at the moment are:
       * FortiEDR (Event pull and bidirectional sync)
    * Automation
       * Tag based automation
+      * QRadar Bidirectional Sync (Auto-close offenses)
    * Automation Tasks
       * The Hive
          * Create Tasks
@@ -74,6 +75,13 @@ Automation can be triggered by adding tags to cases in TheHive:
 - `fc-global-exception`: Create a global exception.
 - `fc-targeted-exception`: Create an event-scoped exception.
 - **Auto-Sync**: Resolving a Case in TheHive automatically marks the FortiEDR event as "Handled".
+
+### QRadar Guide
+Synapse now supports full bidirectional synchronization for QRadar:
+- **Automatic Closure**: When a case or alert is resolved/marked as read in TheHive, Synapse automatically closes the corresponding offense in QRadar.
+- **Custom Closing Reasons**: specify a custom reason by adding a tag like `qr-reason:<name>` (e.g., `qr-reason:FalsePositive`) in TheHive. These names are mapped to IDs in `synapse.conf`.
+- **Direct ID Tags**: You can also use `qc:<id>` for direct ID control.
+- **Enabled by Default**: This feature is enabled when `automation_enabled: true` in the `[QRadar]` section.
 
 ## Roadmap
 

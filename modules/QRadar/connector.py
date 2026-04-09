@@ -487,12 +487,14 @@ class QRadarConnector:
             raise
             
 
-    def closeOffense(self, offense_id):
+    def closeOffense(self, offense_id, closing_reason_id=None):
         """
             Close an offense in QRadar given a specific offense_id
 
             :param offense_id: the QRadar offense id
             :type offense_id: str
+            :param closing_reason_id: the QRadar offense closing reason id
+            :type closing_reason_id: int
 
             :return: nothing
             :rtype: 
@@ -502,12 +504,12 @@ class QRadarConnector:
 
         if self.offenseIsOpen(offense_id):
             try:
-                #when closing an offense with the webUI, the closing_reason_id
-                #is set to 1 by default
-                #this behavior is implemented here with a hardcoded
-                #closing_reason_id=1
+                # Use provided reason ID, or fallback to config, or default to 1
+                reason_id = closing_reason_id if closing_reason_id else self.cfg.get('QRadar', 'closing_reason_id', fallback=1)
+                
+                self.logger.info("Closing offense %s with reason ID %s", offense_id, reason_id)
                 response = self.client.call_api(
-                'siem/offenses/' + str(offense_id) + '?status=CLOSED&closing_reason_id=1', 'POST')
+                    'siem/offenses/' + str(offense_id) + '?status=CLOSED&closing_reason_id=' + str(reason_id), 'POST')
                 response_text = response.text
                 response_body = json.loads(response_text)
         
