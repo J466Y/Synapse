@@ -67,6 +67,7 @@ class Integration(Main):
         # Process Path
         path = event.get('processPath')
         if path:
+            # dataType changed to 'other' to prevent local FileNotFoundError
             artifacts.append({'data': path, 'dataType': 'other', 'message': 'Process Path', 'tags': ['FortiEDR']})
 
         # Rules and Tags
@@ -88,13 +89,13 @@ class Integration(Main):
         # Logged Users
         logged_users = event.get('loggedUsers', [])
         if logged_users and isinstance(logged_users, list):
-            for user in logged_users:
-                artifacts.append({'data': user, 'dataType': 'user', 'message': 'Logged User', 'tags': ['FortiEDR']})
+                # Fixed: Use 'user-account' instead of 'user'
+                artifacts.append({'data': user, 'dataType': 'user-account', 'message': 'Logged User', 'tags': ['FortiEDR']})
 
         # Process Owner
         process_owner = event.get('processOwner')
-        if process_owner:
-            artifacts.append({'data': process_owner, 'dataType': 'user', 'message': 'Process Owner', 'tags': ['FortiEDR']})
+            # Fixed: Use 'user-account' instead of 'user'
+            artifacts.append({'data': process_owner, 'dataType': 'user-account', 'message': 'Process Owner', 'tags': ['FortiEDR']})
 
         # Remove observables that are to be excluded based on the configuration
         artifacts = self.checkObservableExclusionList(artifacts)
@@ -179,7 +180,7 @@ class Integration(Main):
                 if len(parts) >= 6:
                     clean_str = " ".join(parts[:4] + parts[5:])
                     parsed_date = datetime.datetime.strptime(clean_str, '%a %b %d %H:%M:%S %Y')
-                    alert_date = int(parsed_date.timestamp() * 1000)
+                    alert_date = int(parsed_date.timestamp() * 1000) # Epoch ms
             except Exception as e:
                 self.logger.warning("Failed to parse lastSeen date '%s': %s", last_seen_str, e)
 
