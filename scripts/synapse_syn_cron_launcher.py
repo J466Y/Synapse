@@ -1,8 +1,8 @@
 import requests
 # Lista de módulos que quieres sincronizar
 MODULES = [
-	{"name": "qradar", "timerange": 30}
-	#{"name": "fortiedr", "timerange": 30}
+	{"name": "qradar", "timerange": 30},
+	{"name": "fortiedr", "timerange": 30}
     # {"name": "splunk", "timerange": 15}, # Facil de añadir en el futuro
 ]
 SYNAPSE_URL = "http://127.0.0.1:5000/integration/"

@@ -8,6 +8,7 @@ import copy
 import json
 import datetime
 import re
+from thehive4py.query import Eq, And
 from core.integration import Main
 from modules.FortiEDR.connector import FortiEDRConnector
 from modules.TheHive.connector import TheHiveConnector
@@ -229,8 +230,18 @@ class Integration(Main):
             event_report = {'event_id': event_id, 'success': True}
             
             # Deduplication: check if alert already exists
-            query = {'sourceRef': str(event_id), 'source': 'FortiEDR'}
+            query = dict()
+            query['sourceRef'] = str(event_id)
+            query['source'] = 'FortiEDR'
             results = self.theHiveConnector.findAlert(query)
+            
+            if results is None:
+                self.logger.error('Failed to search for alert with event %s, skipping', event_id)
+                event_report['success'] = False
+                event_report['message'] = 'findAlert returned None'
+                report['success'] = False
+                report['events'].append(event_report)
+                continue
             
             if len(results) == 0:
                 self.logger.info('Event %s not found in TheHive, creating alert', event_id)
