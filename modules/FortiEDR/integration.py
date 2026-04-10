@@ -232,7 +232,6 @@ class Integration(Main):
             # Deduplication: check if alert already exists
             query = dict()
             query['sourceRef'] = str(event_id)
-            query['source'] = 'FortiEDR'
             results = self.theHiveConnector.findAlert(query)
             
             if results is None:
