@@ -131,6 +131,19 @@ class Automation():
                         reason_id = self._get_closing_reason()
                         self.QRadarConnector.closeOffense(offense_id, closing_reason_id=reason_id)
 
-            self.report_action = 'closeOffense'
+            # Close offenses in QRadar based on manual trigger tags
+        tags = []
+        if 'details' in self.webhook.data and 'tags' in self.webhook.data['details']:
+            tags = self.webhook.data['details']['tags']
+        elif 'object' in self.webhook.data and 'tags' in self.webhook.data['object']:
+            tags = self.webhook.data['object']['tags']
+
+        if 'synapse:close-offense' in tags:
+            self.offense_id = self.webhook.data['object'].get('sourceRef')
+            if self.offense_id:
+                logger.info('QRadar manual trigger found (synapse:close-offense) for offense {}'.format(self.offense_id))
+                reason_id = self._get_closing_reason()
+                self.QRadarConnector.closeOffense(self.offense_id, closing_reason_id=reason_id)
+                self.report_action = 'closeOffenseManual'
 
         return self.report_action

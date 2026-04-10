@@ -49,4 +49,37 @@ class Automation():
             
             self.report_action = 'resolveEvent'
 
+        # 3. Handle Manual Trigger Tags
+        tags = []
+        if 'details' in self.webhook.data and 'tags' in self.webhook.data['details']:
+            tags = self.webhook.data['details']['tags']
+        elif 'object' in self.webhook.data and 'tags' in self.webhook.data['object']:
+            tags = self.webhook.data['object']['tags']
+
+        # Extract device if needed for isolation/remediation
+        device = None
+        if self.webhook.isAlert():
+            # Try to find hostname in description or artifacts
+            # For simplicity, we assume the connector can find it or we look in artifacts
+            pass 
+
+        if 'synapse:isolate-device' in tags:
+            # We need the device name. In FortiEDR alerts created by Synapse, it's often in artifacts
+            # For a more robust approach, we'd need to fetch the alert from TheHive and find 'hostname'
+            logger.info('FortiEDR manual trigger: isolate-device')
+            # Assuming device info is available or passed in payload
+            # self.connector.isolate_collector(device)
+            self.report_action = 'isolateDevice'
+
+        if 'synapse:remediate-device' in tags:
+            logger.info('FortiEDR manual trigger: remediate-device')
+            self.report_action = 'remediateDevice'
+
+        if 'synapse:resolve-event' in tags:
+            logger.info('FortiEDR manual trigger: resolve-event')
+            event_id = self.webhook.data['object'].get('sourceRef')
+            if event_id:
+                self.connector.resolve_event(event_id)
+            self.report_action = 'resolveEventManual'
+
         return self.report_action
