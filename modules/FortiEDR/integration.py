@@ -170,12 +170,25 @@ class Integration(Main):
         description += f"* **First Seen:** {event.get('firstSeen', 'N/A')}\n"
         description += f"* **Handled:** {'Yes' if event.get('handled') else 'No'}\n"
 
+        last_seen_str = event.get('lastSeen')
+        alert_date = int(datetime.datetime.now().timestamp() * 1000)
+        if last_seen_str:
+            try:
+                # Format: "Fri Apr 10 00:00:00 UTC 2026"
+                parts = last_seen_str.split(" ")
+                if len(parts) >= 6:
+                    clean_str = " ".join(parts[:4] + parts[5:])
+                    parsed_date = datetime.datetime.strptime(clean_str, '%a %b %d %H:%M:%S %Y')
+                    alert_date = int(parsed_date.timestamp() * 1000)
+            except Exception as e:
+                self.logger.warning("Failed to parse lastSeen date '%s': %s", last_seen_str, e)
+
         # Build TheHive alert using craftAlert
         alert = self.theHiveConnector.craftAlert(
             title=f"FortiEDR: {event.get('classification', 'Security Event')} on {device}",
             description=description,
             severity=severity,
-            date=event.get('lastSeen', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
+            date=alert_date,
             tags=event.get('tags', ['FortiEDR']),
             tlp=int(self.cfg.get('Automation', 'default_observable_tlp', fallback=2)),
             status='New',
@@ -248,7 +261,10 @@ class Integration(Main):
                     enriched = self.enrichEvent(event)
                     alert = self.fortiedrEventToHiveAlert(enriched)
                     created_alert = self.theHiveConnector.createAlert(alert)
-                    event_report['raised_alert_id'] = created_alert['id']
+                    if created_alert:
+                        event_report['raised_alert_id'] = created_alert.get('id')
+                    else:
+                        raise Exception("createAlert returned None, likely due to HTTP 400")
                 except Exception as e:
                     self.logger.error('Failed to create alert for event %s: %s', event_id, e, exc_info=True)
                     event_report['success'] = False
