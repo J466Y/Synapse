@@ -91,13 +91,13 @@ class Integration(Main):
         if logged_users and isinstance(logged_users, list):
             for user in logged_users:
                 # Fixed: Use 'user-account' instead of 'user'
-                artifacts.append({'data': user, 'dataType': 'user-account', 'message': 'Logged User', 'tags': ['FortiEDR']})
+                artifacts.append({'data': user, 'dataType': 'other', 'message': 'Logged User', 'tags': ['FortiEDR', 'type:user-account']})
 
         # Process Owner
         process_owner = event.get('processOwner')
         if process_owner:
             # Fixed: Use 'user-account' instead of 'user'
-            artifacts.append({'data': process_owner, 'dataType': 'user-account', 'message': 'Process Owner', 'tags': ['FortiEDR']})
+            artifacts.append({'data': process_owner, 'dataType': 'other', 'message': 'Process Owner', 'tags': ['FortiEDR', 'type:user-account']})
 
         # Remove observables that are to be excluded based on the configuration
         artifacts = self.checkObservableExclusionList(artifacts)

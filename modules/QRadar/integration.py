@@ -176,7 +176,6 @@ class Integration(Main):
                                      'registry',
                                      'uri_path',
                                      'url',
-                                     'user-account',
                                      'user-agent']
 
         artifacts = []
