@@ -89,11 +89,13 @@ class Integration(Main):
         # Logged Users
         logged_users = event.get('loggedUsers', [])
         if logged_users and isinstance(logged_users, list):
+            for user in logged_users:
                 # Fixed: Use 'user-account' instead of 'user'
                 artifacts.append({'data': user, 'dataType': 'user-account', 'message': 'Logged User', 'tags': ['FortiEDR']})
 
         # Process Owner
         process_owner = event.get('processOwner')
+        if process_owner:
             # Fixed: Use 'user-account' instead of 'user'
             artifacts.append({'data': process_owner, 'dataType': 'user-account', 'message': 'Process Owner', 'tags': ['FortiEDR']})
 
