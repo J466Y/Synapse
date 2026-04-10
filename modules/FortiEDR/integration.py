@@ -67,7 +67,7 @@ class Integration(Main):
         # Process Path
         path = event.get('processPath')
         if path:
-            artifacts.append({'data': path, 'dataType': 'file', 'message': 'Process Path', 'tags': ['FortiEDR']})
+            artifacts.append({'data': path, 'dataType': 'other', 'message': 'Process Path', 'tags': ['FortiEDR']})
 
         # Rules and Tags
         tags = ['FortiEDR']
