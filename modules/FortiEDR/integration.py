@@ -73,10 +73,10 @@ class Integration(Main):
         tags = ['FortiEDR']
         rules = event.get('rules', [])
         if rules and isinstance(rules, list):
-            rule = rules[0]
-            enriched['automation_identifiers'] = [rule]
-            automation_tags = self.getAutomationTags([rule])
-            tags.extend(automation_tags)
+            enriched['automation_identifiers'] = rules
+            for rule in rules:
+                if isinstance(rule, str) and rule:
+                    tags.append(rule)
 
         # Additional Observables from exhaustive list
         # Destinations
