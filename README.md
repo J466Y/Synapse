@@ -86,10 +86,10 @@ Synapse now supports full bidirectional synchronization for QRadar:
 ## Roadmap
 
 ### Phase 1: Validate Current Integrations
-- [ ] 1. Verify FortiEDR + QRadar bidirectional integration in lab environment
+- [✓] 1. Verify FortiEDR + QRadar bidirectional integration in lab environment
 
 ### Phase 2: Cortex Enrichment
-- [ ] 2. Remove MISP alert ingestion from TheHive (reduce noise)
+- [✓] 2. Remove MISP alert ingestion from TheHive (reduce noise)
 - [ ] 3. Integrate Analyzers into Cortex (AbuseIPDB, Censys, OTX, VirusTotal)
 - [ ] 4. Add MISP integration to Cortex (IOC correlation, not alert ingestion)
 - [ ] 5. Configure Cortex Auto-Run for automatic observable enrichment
