@@ -160,14 +160,9 @@ class Webhook:
 
         self.logger.debug('%s.isMarkedAsRead starts', __name__)
 
-        try:
-            if self.data['details']['status'] == 'Ignored':
-                return True
-            else:
-                return False
-        except KeyError:
-            # when the alert is ignored (ignore new updates), the webhook does
-            # not have the status key, this exception handles that
+        if self.data.get('details', {}).get('status') == 'Ignored':
+            return True
+        else:
             return False
 
     def isClosed(self):
@@ -183,15 +178,9 @@ class Webhook:
 
         self.logger.debug('%s.isClosed starts', __name__)
 
-        try:
-            if self.data['details']['status'] == 'Resolved':
-                return True
-            else:
-                return False
-        except KeyError:
-            # happens when the case is already closed
-            # and user updates the case with a custom field (for example)
-            # then status key is not included in the webhook
+        if self.data.get('details', {}).get('status') == 'Resolved':
+            return True
+        else:
             return False
 
     def isDeleted(self):
@@ -251,7 +240,7 @@ class Webhook:
 
         self.logger.debug('%s.isSuccess starts', __name__)
 
-        if self.data['details']['status'] == "Success":
+        if self.data.get('details', {}).get('status') == "Success":
             return True
         else:
             return False
@@ -281,7 +270,7 @@ class Webhook:
 
         self.logger.debug('%s.isImportedAlert starts', __name__)
 
-        if (self.isAlert() and self.isUpdate() and 'status' in self.data['details'] and self.data['details']['status'] == 'Imported'):
+        if (self.isAlert() and self.isUpdate() and self.data.get('details', {}).get('status') == 'Imported'):
             return True
         else:
             return False
@@ -299,7 +288,7 @@ class Webhook:
         """
 
         query = dict()
-        query['case'] = case_id
+        query['case'] = str(case_id).strip('~')
         results = self.TheHiveConnector.findAlert(query)
 
         if len(results) == 1:
@@ -338,7 +327,7 @@ class Webhook:
 
         self.logger.debug('%s.isQRadar starts', __name__)
 
-        if ('tags' in self.data['details'] and 'QRadar' in self.data['details']['tags']) or ('tags' in self.data['object'] and 'QRadar' in self.data['object']['tags']):
+        if 'QRadar' in self.data.get('details', {}).get('tags', []) or 'QRadar' in self.data.get('object', {}).get('tags', []):
             return True
         else:
             return False
@@ -368,7 +357,7 @@ class Webhook:
 
         self.logger.debug('%s.isQRadarAlertImported starts', __name__)
 
-        if (self.isAlert() and self.isUpdate() and self.isQRadar() and 'follow' in self.data['details'] and self.data['details']['follow']):
+        if (self.isAlert() and self.isUpdate() and self.isQRadar() and self.data.get('details', {}).get('follow')):
             return True
         else:
             return False
@@ -383,7 +372,7 @@ class Webhook:
 
         self.logger.debug('%s.isQRadarAlertWithArtifacts starts', __name__)
 
-        if (self.isAlert() and self.isQRadar()) and 'artifacts' in self.data['details'] and 'case' in self.data['object']:
+        if (self.isAlert() and self.isQRadar()) and 'artifacts' in self.data.get('details', {}) and 'case' in self.data.get('object', {}):
             return True
         else:
             return False
@@ -540,7 +529,7 @@ class Webhook:
 
         self.logger.debug('%s.isAzureSentinel starts', __name__)
 
-        if ('tags' in self.data['details'] and 'AzureSentinel' in self.data['details']['tags']) or ('tags' in self.data['object'] and 'AzureSentinel' in self.data['object']['tags']):
+        if 'AzureSentinel' in self.data.get('details', {}).get('tags', []) or 'AzureSentinel' in self.data.get('object', {}).get('tags', []):
             return True
         else:
             return False
@@ -714,7 +703,7 @@ class Webhook:
 
         self.logger.debug('%s.isMisp starts', __name__)
 
-        if ('type' in self.data['object'] and self.data['object']['type'] == 'misp') or ('tags' in self.data['object'] and 'misp' in self.data['object']['tags']) or ('tags' in self.data['details'] and 'misp' in self.data['details']['tags']) or ('tags' in self.data['details'] and any('MISP:type=' in tag for tag in self.data['details']['tags'])):
+        if self.data.get('object', {}).get('type') == 'misp' or 'misp' in self.data.get('object', {}).get('tags', []) or 'misp' in self.data.get('details', {}).get('tags', []) or any('MISP:type=' in tag for tag in self.data.get('details', {}).get('tags', [])):
             return True
         else:
             return False

@@ -74,8 +74,8 @@ class FortiEDRConnector:
                 now = datetime.now(timezone.utc)
                 start_time = now - timedelta(minutes=timerange_minutes)
                 
-                params['firstSeenFrom'] = start_time.strftime('%Y-%m-%d %H:%M:%S')
-                params['firstSeenTo'] = now.strftime('%Y-%m-%d %H:%M:%S')
+                params['lastSeenFrom'] = start_time.strftime('%Y-%m-%d %H:%M:%S')
+                params['lastSeenTo'] = now.strftime('%Y-%m-%d %H:%M:%S')
                 
             result = events_api.list_events(**params)
             return result
@@ -160,4 +160,73 @@ class FortiEDRConnector:
             return result
         except Exception as e:
             self.logger.error('Failed to remediate device %s: %s', device, e, exc_info=True)
+            return {'status': False, 'data': str(e)}
+
+
+    def get_event(self, event_id):
+        """
+        Get details of a specific event
+        :param event_id: FortiEDR event ID
+        :return: event dictionary or None
+        """
+        self.logger.debug('Fetching details for event %s', event_id)
+        try:
+            events_api = fortiedr.Events()
+            result = events_api.list_events(eventIds=[int(event_id)], organization=self.organization)
+            if result['status'] and isinstance(result['data'], list) and len(result['data']) > 0:
+                return result['data'][0]
+            elif result['status'] and isinstance(result['data'], dict) and result['data'].get('events'):
+                events = result['data'].get('events')
+                if events:
+                    return events[0]
+            return None
+        except Exception as e:
+            self.logger.error('Failed to get event %s: %s', event_id, e)
+            return None
+
+    def create_exception(self, event_id, collector_groups=None, destinations=None, users=None, comment=None, all_groups=True, all_dests=True, all_users=True):
+        """
+        Create a security exception
+        :param event_id: FortiEDR event ID
+        :param collector_groups: list of collector group names
+        :param destinations: list of destination IPs
+        :param users: list of user names
+        :param comment: comment
+        :param all_groups: bool (True = all groups)
+        :param all_dests: bool (True = all destinations)
+        :param all_users: bool (True = all users)
+        :return: normalized dict
+        """
+        self.logger.info('Creating exception for event: %s (Scoped: groups=%s, dests=%s, users=%s)', event_id, not all_groups, not all_dests, not all_users)
+        try:
+            events_api = fortiedr.Events()
+
+            # The FortiEDR SDK might be sensitive to boolean objects vs lowercase strings
+            def botos(b):
+                return str(b).lower() if isinstance(b, bool) else b
+
+            params = {
+                'eventId': int(event_id),
+                'organization': self.organization,
+                'allCollectorGroups': botos(all_groups),
+                'allDestinations': botos(all_dests),
+                'allUsers': botos(all_users)
+            }
+
+            if collector_groups:
+                params['collectorGroups'] = collector_groups
+                params['allCollectorGroups'] = 'false'
+            if destinations:
+                params['destinations'] = destinations
+                params['allDestinations'] = 'false'
+            if users:
+                params['users'] = users
+                params['allUsers'] = 'false'
+            if comment:
+                params['comment'] = comment
+
+            result = events_api.create_exception(**params)
+            return result
+        except Exception as e:
+            self.logger.error('Failed to create exception for event %s: %s', event_id, e, exc_info=True)
             return {'status': False, 'data': str(e)}

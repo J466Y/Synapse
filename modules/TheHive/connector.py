@@ -48,17 +48,17 @@ class TheHiveConnector:
             return False
 
 
-    # Default error handler for the above requests
     def handleErrors(self, message, response):
         self.logger.error(message)
+        error_data = ""
         try:
-            self.logger.error(f"Exception occurred: {json.dumps(response.json())}")
-            raise ValueError(json.dumps(response.json(), indent=4, sort_keys=True))
-        except json.decoder.JSONDecodeError:
-            self.logger.error(f"Exception occurred: {response.text}")
-            raise ValueError(response.text)
-        except Exception as error:
-            self.logger.error(f"Unhandled exception occurred: {error}")
+            error_data = json.dumps(response.json(), indent=4, sort_keys=True)
+            self.logger.error(f"Exception occurred: {error_data}")
+        except Exception:
+            error_data = response.text
+            self.logger.error(f"Exception occurred: {error_data}")
+            
+        raise ValueError(error_data)
 
     def searchCaseByDescription(self, string):
         # Search case with a specific string in description

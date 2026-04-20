@@ -116,6 +116,4 @@ ENV/
 #Vim
 *.swp
 .vscode/settings.json
-logs/synapse.log.1
-logs/synapse.log.3
-logs/synapse.log.2
+logs/synapse.log.*

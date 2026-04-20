@@ -9,6 +9,7 @@ import json
 import datetime
 import re
 from core.integration import Main
+from thehive4py.query import And, Eq
 from modules.QRadar.connector import QRadarConnector
 from modules.TheHive.connector import TheHiveConnector
 from time import sleep
@@ -214,8 +215,8 @@ class Integration(Main):
             tags,
             2,
             'Imported',
-            'internal',
-            'QRadar_Offenses',
+            'QRadar Offense',
+            'Synapse',
             str(offense['id']),
             artifacts,
             qradarCaseTemplate)
@@ -282,8 +283,7 @@ class Integration(Main):
                 theHiveAlert = self.qradarOffenseToHiveAlert(enrichedOffense)
 
                 # searching if the offense has already been converted to alert
-                query = dict()
-                query['sourceRef'] = str(offense['id'])
+                query = And(Eq('sourceRef', str(offense['id'])), Eq('source', 'Synapse'), Eq('type', 'QRadar Offense'))
                 self.logger.info('Looking for offense %s in TheHive alerts', str(offense['id']))
                 results = self.TheHiveConnector.findAlert(query)
                 if len(results) == 0:

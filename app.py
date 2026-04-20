@@ -106,6 +106,29 @@ app.config['JSONIFY_PRETTYPRINT_REGULAR'] = True
 def initialize():
     logger = logging.getLogger(__name__)
 
+@app.before_request
+def verify_api_key():
+    # Allow access to /version without authentication
+    if request.path == '/version':
+        return
+
+    api_key = cfg.get('api', 'api_key')
+    if api_key:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            logger.warning('Missing or invalid Authorization header from {}'.format(request.remote_addr))
+            return jsonify({'success': False, 'message': 'Missing or invalid Authorization header'}), 401
+        
+        try:
+            token = auth_header.split(' ')[1]
+        except IndexError:
+            logger.warning('Malformed Authorization header from {}'.format(request.remote_addr))
+            return jsonify({'success': False, 'message': 'Malformed Authorization header'}), 401
+
+        if token != api_key:
+            logger.warning('Invalid API key from {}'.format(request.remote_addr))
+            return jsonify({'success': False, 'message': 'Invalid API key'}), 401
+
 @app.route('/webhook', methods=['POST'])
 def listenWebhook():
     if request.is_json:

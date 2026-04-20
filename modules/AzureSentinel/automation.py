@@ -1,5 +1,6 @@
 import logging
 from datetime import date
+from thehive4py.query import Eq
 
 from modules.TheHive.connector import TheHiveConnector
 from modules.Cortex.connector import CortexConnector
@@ -30,8 +31,7 @@ class Automation():
         }
 
     def checkIfInClosedCaseOrAlertMarkedAsRead(self, sourceref):
-        query = dict()
-        query['sourceRef'] = str(sourceref)
+        query = Eq('sourceRef', str(sourceref))
         logger.debug('Checking if third party ticket({}) is linked to a closed case'.format(sourceref))
         alert_results = self.TheHiveConnector.findAlert(query)
         if len(alert_results) > 0:

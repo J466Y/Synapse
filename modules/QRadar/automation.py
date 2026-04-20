@@ -8,8 +8,8 @@ from modules.TheHive.connector import TheHiveConnector
 from modules.Cortex.connector import CortexConnector
 from modules.QRadar.connector import QRadarConnector
 
-# Load required object models
 from thehive4py.models import Case, CustomFieldHelper, CaseObservable, CaseTask
+from thehive4py.query import Eq
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +27,7 @@ class Automation():
         self.report_action = report_action
 
     def checkIfInClosedCaseOrAlertMarkedAsRead(self, sourceref):
-        query = dict()
-        query['sourceRef'] = str(sourceref)
+        query = Eq('sourceRef', str(sourceref))
         logger.debug('Checking if third party ticket({}) is linked to a closed case'.format(sourceref))
         alert_results = self.TheHiveConnector.findAlert(query)
         if len(alert_results) > 0:
@@ -52,7 +51,37 @@ class Automation():
         return False
 
     def parse_hooks(self):
-        # Update incident status to active when imported as Alert
+        # 0. Handle explicit manual actions from Responders
+        tags = self.webhook.data.get('object', {}).get('tags', [])
+        if 'synapse:close-offense' in tags:
+            obj_type = self.webhook.data.get('objectType')
+            
+            if obj_type == 'alert':
+                self.offense_id = self.webhook.data['object'].get('sourceRef')
+                if self.offense_id:
+                    logger.info(f"Triggering explicit QRadar offense closure for alert offense {self.offense_id}")
+                    self.QRadarConnector.closeOffense(self.offense_id)
+            
+            elif obj_type == 'case':
+                case_id = self.webhook.data['object'].get('id', self.webhook.data.get('objectId'))
+                
+                # Fetch all alerts linked to this case using fromQRadar
+                if self.webhook.fromQRadar(case_id):
+                    # Single alert case
+                    if hasattr(self.webhook, 'ext_alert_id') and self.webhook.ext_alert_id:
+                        logger.info(f"Triggering explicit QRadar offense closure for case {case_id} -> offense {self.webhook.ext_alert_id}")
+                        self.QRadarConnector.closeOffense(self.webhook.ext_alert_id)
+                        
+                    # Multiple alerts case
+                    elif hasattr(self.webhook, 'ext_alert_ids') and len(self.webhook.ext_alert_ids) > 0:
+                        logger.info(f"Triggering explicit QRadar bulk offense closure for case {case_id} -> offenses {self.webhook.ext_alert_ids}")
+                        for offense_id in self.webhook.ext_alert_ids:
+                            logger.info(f"Closing offense {offense_id} for case {case_id}")
+                            self.QRadarConnector.closeOffense(offense_id)
+
+            return 'closeOffenseExplicit'
+
+        # 1. Update incident status to active when imported as Alert
         if self.webhook.isQRadarAlertImported():
             self.offense_id = self.webhook.data['object']['sourceRef']
 

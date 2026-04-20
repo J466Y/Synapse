@@ -1,5 +1,6 @@
 import json
 from core.integration import Main
+from thehive4py.query import And, Eq
 from modules.AzureSentinel.connector import AzureSentinelConnector
 from modules.TheHive.connector import TheHiveConnector
 
@@ -234,8 +235,8 @@ class Integration(Main):
             self.tags,
             2,
             'New',
-            'internal',
-            'Azure_Sentinel_incidents',
+            'AzureSentinel Incident',
+            'Synapse',
             str(incident['name']),
             self.artifacts,
             self.sentinelCaseTemplate)
@@ -381,8 +382,7 @@ class Integration(Main):
                 theHiveAlert = self.sentinelIncidentToHiveAlert(incident)
 
                 # searching if the incident has already been converted to alert
-                query = dict()
-                query['sourceRef'] = str(incident['name'])
+                query = And(Eq('sourceRef', str(incident['name'])), Eq('source', 'Synapse'), Eq('type', 'AzureSentinel Incident'))
                 self.logger.info('Looking for incident %s in TheHive alerts', str(incident['name']))
                 alert_results = self.TheHiveConnector.findAlert(query)
                 if len(alert_results) == 0:

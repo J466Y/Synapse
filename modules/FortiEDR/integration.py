@@ -9,6 +9,7 @@ import json
 import datetime
 import re
 from core.integration import Main
+from thehive4py.query import And, Eq
 from modules.FortiEDR.connector import FortiEDRConnector
 from modules.TheHive.connector import TheHiveConnector
 
@@ -32,24 +33,28 @@ class Integration(Main):
         enriched = copy.deepcopy(event)
         artifacts = []
 
-        # Extract observables based on common FortiEDR fields
-        # Device / Hostname
-        device = event.get('device')
+        # Extract observables based on common FortiEDR fields (Flat or Nested structure)
+        # Device / Hostname (Endpoint)
+        device = event.get('device') or event.get('collectorName')
         if device:
-            artifacts.append({'data': device, 'dataType': 'hostname', 'message': 'Endpoint Name', 'tags': ['FortiEDR']})
-
-        # Device IP
-        device_ip = event.get('deviceIp')
+            artifacts.append({'data': device, 'dataType': 'hostname', 'message': 'Endpoint Name', 'tags': ['FortiEDR', 'endpoint']})
+        enriched['device'] = device
+        
+        # Device IP (Endpoint IP)
+        device_ip = event.get('deviceIp') or event.get('collectorIp')
         if device_ip:
-            artifacts.append({'data': device_ip, 'dataType': 'ip', 'message': 'Endpoint IP', 'tags': ['FortiEDR']})
+            artifacts.append({'data': device_ip, 'dataType': 'ip', 'message': 'Endpoint IP', 'tags': ['FortiEDR', 'endpoint']})
+        enriched['deviceIp'] = device_ip
 
         # Process / File Name
-        process = event.get('process')
+        process_info = event.get('source', {}).get('process', {}) if isinstance(event.get('source'), dict) else {}
+        process = event.get('process') or process_info.get('name')
         if process:
             artifacts.append({'data': process, 'dataType': 'filename', 'message': 'Process Name', 'tags': ['FortiEDR']})
+        enriched['process'] = process
 
         # File Hash
-        file_hash = event.get('fileHash')
+        file_hash = event.get('fileHash') or process_info.get('fileHash')
         if file_hash:
             data_type = 'hash'
             if len(file_hash) == 32:
@@ -61,10 +66,27 @@ class Integration(Main):
             artifacts.append({'data': file_hash, 'dataType': data_type, 'message': 'Process File Hash', 'tags': ['FortiEDR']})
 
         # Process Path
-        path = event.get('path')
+        path = event.get('path') or process_info.get('path')
         if path:
             artifacts.append({'data': path, 'dataType': 'file', 'message': 'Process Path', 'tags': ['FortiEDR']})
 
+        # Destination IPs
+        dest = event.get('destinationIp') or event.get('destination', {}).get('ip')
+        if dest:
+            artifacts.append({'data': dest, 'dataType': 'ip', 'message': 'Destination IP', 'tags': ['FortiEDR', 'destination']})
+        
+        # User discovery
+        user = event.get('loggedUser') or event.get('userName') or event.get('user')
+        if not user and isinstance(event.get('target'), dict):
+            # Try target user if it was a targeted attack
+            user = event.get('target', {}).get('user', {}).get('name') or event.get('target', {}).get('name')
+        if not user and isinstance(event.get('source'), dict):
+            # Try source user
+            user = event.get('source', {}).get('user', {}).get('name')
+            
+        if user:
+            artifacts.append({'data': user, 'dataType': 'user', 'message': 'Involved User', 'tags': ['FortiEDR', 'user']})
+        enriched['user'] = user
         # Rule Name & Tags
         tags = ['FortiEDR']
         rule = event.get('rule')
@@ -72,10 +94,10 @@ class Integration(Main):
             enriched['automation_identifiers'] = [rule]
             automation_tags = self.getAutomationTags([rule])
             tags.extend(automation_tags)
-
+            
         # Remove observables that are to be excluded based on the configuration
         artifacts = self.checkObservableExclusionList(artifacts)
-
+        
         # Match observables against the TLP list
         artifacts = self.checkObservableTLP(artifacts)
 
@@ -125,18 +147,34 @@ class Integration(Main):
         description += f"* **Rule:** {event.get('rule', 'N/A')}\n"
         description += f"* **First Seen:** {event.get('firstSeen', 'N/A')}\n"
 
+        # Date handling: TheHive 4 requires epoch milliseconds
+        # FortiEDR usually returns YYYY-MM-DD HH:MM:SS or similar
+        event_date = event.get('firstSeen')
+        if isinstance(event_date, str):
+            try:
+                # Try common FortiEDR formats
+                dt = datetime.datetime.strptime(event_date, '%Y-%m-%d %H:%M:%S')
+                epoch_ms = int(dt.timestamp() * 1000)
+            except Exception:
+                # Fallback to current time if parsing fails
+                epoch_ms = int(datetime.datetime.now().timestamp() * 1000)
+        else:
+            epoch_ms = int(datetime.datetime.now().timestamp() * 1000)
+
+        eid = event.get('id') or event.get('eventId')
+        
         # Build TheHive alert using craftAlert
         alert = self.theHiveConnector.craftAlert(
             title=f"FortiEDR: {event.get('classification', 'Security Event')} on {event.get('device', 'Unknown Device')}",
             description=description,
             severity=severity,
-            date=event.get('firstSeen', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
+            date=epoch_ms,
             tags=event.get('tags', ['FortiEDR']),
             tlp=int(self.cfg.get('Automation', 'default_observable_tlp', fallback=2)),
             status='New',
             type='FortiEDR Alert',
-            source='FortiEDR',
-            sourceRef=str(event.get('id')),
+            source='Synapse',
+            sourceRef=str(eid),
             artifacts=event.get('artifacts', []),
             caseTemplate=case_template
         )
@@ -181,26 +219,29 @@ class Integration(Main):
             events = events.get('events', [])
             
         for event in events:
-            event_report = {'event_id': event.get('id'), 'success': True}
+            self.logger.debug("Inspecting event: %s", json.dumps(event))
+            # Temporary fix/guess: try 'eventId' if 'id' is missing
+            eid = event.get('id') or event.get('eventId')
+            event_report = {'event_id': eid, 'success': True}
             
             # Deduplication: check if alert already exists
-            query = {'sourceRef': str(event.get('id')), 'source': 'FortiEDR'}
+            query = And(Eq('sourceRef', str(eid)), Eq('source', 'Synapse'), Eq('type', 'FortiEDR Alert'))
             results = self.theHiveConnector.findAlert(query)
             
             if len(results) == 0:
-                self.logger.info('Event %s not found in TheHive, creating alert', event.get('id'))
+                self.logger.info('Event %s not found in TheHive, creating alert', eid)
                 try:
                     enriched = self.enrichEvent(event)
                     alert = self.fortiedrEventToHiveAlert(enriched)
                     created_alert = self.theHiveConnector.createAlert(alert)
                     event_report['raised_alert_id'] = created_alert['id']
                 except Exception as e:
-                    self.logger.error('Failed to create alert for event %s: %s', event.get('id'), e, exc_info=True)
+                    self.logger.error('Failed to create alert for event %s: %s', eid, e, exc_info=True)
                     event_report['success'] = False
                     event_report['message'] = str(e)
                     report['success'] = False
             else:
-                self.logger.info('Event %s already imported as alert, skipping', event.get('id'))
+                self.logger.info('Event %s already imported as alert, skipping', eid)
                 event_report['message'] = 'Already imported'
                 
             report['events'].append(event_report)
