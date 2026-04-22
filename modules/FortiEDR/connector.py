@@ -3,7 +3,6 @@
 
 import logging
 import json
-import urllib.parse
 from datetime import datetime, timedelta, timezone
 import fortiedr
 
