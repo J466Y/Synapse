@@ -26,35 +26,42 @@ class Integration(Main):
 
     def enrichEvent(self, event):
         """
-        Enrich a FortiEDR event with observables (artifacts)
-        :param event: raw event dict from FortiEDR
-        :return: enriched event dict
+        Enrich a FortiEDR event with observables (artifacts) as per documentation.
         """
         enriched = copy.deepcopy(event)
         artifacts = []
 
-        # Extract observables based on common FortiEDR fields (Flat or Nested structure)
-        # Device / Hostname (Endpoint)
-        device = event.get('device') or event.get('collectorName')
+        # 1. Event ID
+        eid = event.get('eventId') or event.get('id')
+        enriched['id'] = eid
+
+        # 2. Collector / Device Data (Extract from the first collector)
+        collectors = event.get('collectors', [])
+        collector = collectors[0] if isinstance(collectors, list) and len(collectors) > 0 else {}
+        
+        device = collector.get('device')
         if device:
             artifacts.append({'data': device, 'dataType': 'hostname', 'message': 'Endpoint Name', 'tags': ['FortiEDR', 'endpoint']})
         enriched['device'] = device
         
-        # Device IP (Endpoint IP)
-        device_ip = event.get('deviceIp') or event.get('collectorIp')
+        # IP handling (Try deviceIp from doc, fallback to 'ip' seen in some logs)
+        device_ip = collector.get('deviceIp') or collector.get('ip')
         if device_ip:
             artifacts.append({'data': device_ip, 'dataType': 'ip', 'message': 'Endpoint IP', 'tags': ['FortiEDR', 'endpoint']})
         enriched['deviceIp'] = device_ip
 
-        # Process / File Name
-        process_info = event.get('source', {}).get('process', {}) if isinstance(event.get('source'), dict) else {}
-        process = event.get('process') or process_info.get('name')
+        # 3. Collector Group
+        collector_group = collector.get('collectorGroup')
+        enriched['collectorGroupName'] = collector_group
+
+        # 4. Process Name
+        process = event.get('process')
         if process:
             artifacts.append({'data': process, 'dataType': 'filename', 'message': 'Process Name', 'tags': ['FortiEDR']})
         enriched['process'] = process
 
-        # File Hash
-        file_hash = event.get('fileHash') or process_info.get('fileHash')
+        # 5. File Hash
+        file_hash = event.get('fileHash') or event.get('hash')
         if file_hash:
             data_type = 'hash'
             if len(file_hash) == 32:
@@ -65,43 +72,48 @@ class Integration(Main):
                 data_type = 'sha256'
             artifacts.append({'data': file_hash, 'dataType': data_type, 'message': 'Process File Hash', 'tags': ['FortiEDR']})
 
-        # Process Path
-        path = event.get('path') or process_info.get('path')
+        # 6. Process Path
+        path = event.get('processPath') or event.get('path')
         if path:
-            artifacts.append({'data': path, 'dataType': 'file', 'message': 'Process Path', 'tags': ['FortiEDR']})
+            artifacts.append({'data': path, 'dataType': 'other', 'message': 'Process Path', 'tags': ['FortiEDR']})
 
-        # Destination IPs
-        dest = event.get('destinationIp') or event.get('destination', {}).get('ip')
-        if dest:
-            artifacts.append({'data': dest, 'dataType': 'ip', 'message': 'Destination IP', 'tags': ['FortiEDR', 'destination']})
+        # 7. Destination IPs (from documentation: 'destinations' or 'destination')
+        dests = event.get('destinations', [])
+        if not dests and event.get('destination'):
+            dests = [event.get('destination')]
+                 
+        if isinstance(dests, list):
+            for dest in dests:
+                artifacts.append({'data': dest, 'dataType': 'ip', 'message': 'Destination IP', 'tags': ['FortiEDR', 'destination']})
         
-        # User discovery
-        user = event.get('loggedUser') or event.get('userName') or event.get('user')
-        if not user and isinstance(event.get('target'), dict):
-            # Try target user if it was a targeted attack
-            user = event.get('target', {}).get('user', {}).get('name') or event.get('target', {}).get('name')
-        if not user and isinstance(event.get('source'), dict):
-            # Try source user
-            user = event.get('source', {}).get('user', {}).get('name')
-            
-        if user:
-            artifacts.append({'data': user, 'dataType': 'user', 'message': 'Involved User', 'tags': ['FortiEDR', 'user']})
-        enriched['user'] = user
-        # Rule Name & Tags
+        # 8. User discovery
+        users = event.get('loggedUsers', [])
+        if isinstance(users, list) and len(users) > 0:
+            user = users[0]
+            for u in users:
+               artifacts.append({'data': u, 'dataType': 'other', 'message': 'Involved User', 'tags': ['FortiEDR', 'user']})
+            enriched['user'] = user
+
+        # 9. Rule Name & Classification
+        rules = event.get('rules', [])
+        rule = rules[0] if isinstance(rules, list) and len(rules) > 0 else event.get('rule')
+        enriched['rule'] = rule
+        
+        classification = event.get('classification')
+        enriched['classification'] = classification
+
         tags = ['FortiEDR']
-        rule = event.get('rule')
         if rule:
             enriched['automation_identifiers'] = [rule]
-            automation_tags = self.getAutomationTags([rule])
-            tags.extend(automation_tags)
+            tags.append(f"rule:{rule}")
             
-        # Remove observables that are to be excluded based on the configuration
+        if collector_group:
+            tags.append(f"collectorGroup:{collector_group}")
+            
+        # Standard Synapse enrichment processing
         artifacts = self.checkObservableExclusionList(artifacts)
-        
-        # Match observables against the TLP list
         artifacts = self.checkObservableTLP(artifacts)
 
-        # Craft artifacts using TheHiveConnector
         hiveArtifacts = []
         for artifact in artifacts:
             hiveArtifact = self.theHiveConnector.craftAlertArtifact(
@@ -141,6 +153,7 @@ class Integration(Main):
         description += f"* **ID:** {event.get('id')}\n"
         description += f"* **Device:** {event.get('device')}\n"
         description += f"* **IP:** {event.get('deviceIp', 'N/A')}\n"
+        description += f"* **Group:** {event.get('collectorGroupName', 'N/A')}\n"
         description += f"* **Process:** {event.get('process', 'N/A')}\n"
         description += f"* **Severity:** {event.get('severity')}\n"
         description += f"* **Classification:** {event.get('classification', 'N/A')}\n"
@@ -165,7 +178,7 @@ class Integration(Main):
         
         # Build TheHive alert using craftAlert
         alert = self.theHiveConnector.craftAlert(
-            title=f"FortiEDR: {event.get('classification', 'Security Event')} on {event.get('device', 'Unknown Device')}",
+            title=f"FORTIEDR: {event.get('process', 'Unknown Process')} - {event.get('classification', 'Security Event')}",
             description=description,
             severity=severity,
             date=epoch_ms,

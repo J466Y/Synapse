@@ -3,6 +3,7 @@
 
 import logging
 import json
+import urllib.parse
 from datetime import datetime, timedelta, timezone
 import fortiedr
 
@@ -184,48 +185,59 @@ class FortiEDRConnector:
             self.logger.error('Failed to get event %s: %s', event_id, e)
             return None
 
-    def create_exception(self, event_id, collector_groups=None, destinations=None, users=None, comment=None, all_groups=True, all_dests=True, all_users=True):
+    def create_exception(self, event_id, collector_groups=None, destinations=None,
+                         comment=None, all_groups=True, all_dests=True,
+                         use_any_path=None, use_in_exception=None,
+                         wildcard_files=None, wildcard_paths=None,
+                         force_create=True):
         """
-        Create a security exception
-        :param event_id: FortiEDR event ID
-        :param collector_groups: list of collector group names
-        :param destinations: list of destination IPs
-        :param users: list of user names
-        :param comment: comment
-        :param all_groups: bool (True = all groups)
-        :param all_dests: bool (True = all destinations)
-        :param all_users: bool (True = all users)
-        :return: normalized dict
+        Create a FortiEDR exception for a security event.
+        Bypasses the library's create_exception because it stringifies the JSON body.
+        Follows the documented sample:
+          .../create-exception?eventId=1000&allCollectorGroups=false&collectorGroups=OSX Users,Home Users&allDestinations=false&destinations=1.2.3.4,5.6.7.8,internal destinations&forceCreate=true
         """
-        self.logger.info('Creating exception for event: %s (Scoped: groups=%s, dests=%s, users=%s)', event_id, not all_groups, not all_dests, not all_users)
         try:
-            events_api = fortiedr.Events()
+            self.authenticate()
 
-            # The FortiEDR SDK might be sensitive to boolean objects vs lowercase strings
-            def botos(b):
-                return str(b).lower() if isinstance(b, bool) else b
+            # Build URL with raw f-strings (NO urlencode — FortiEDR expects raw values)
+            url = '/management-rest/events/create-exception'
+            url_params = []
 
-            params = {
-                'eventId': int(event_id),
-                'organization': self.organization,
-                'allCollectorGroups': botos(all_groups),
-                'allDestinations': botos(all_dests),
-                'allUsers': botos(all_users)
-            }
+            url_params.append(f'eventId={int(event_id)}')
 
+            if all_groups is not None:
+                url_params.append(f'allCollectorGroups={str(all_groups).lower()}')
             if collector_groups:
-                params['collectorGroups'] = collector_groups
-                params['allCollectorGroups'] = 'false'
-            if destinations:
-                params['destinations'] = destinations
-                params['allDestinations'] = 'false'
-            if users:
-                params['users'] = users
-                params['allUsers'] = 'false'
-            if comment:
-                params['comment'] = comment
+                cg = ",".join(collector_groups) if isinstance(collector_groups, list) else collector_groups
+                url_params.append(f'collectorGroups={cg}')
 
-            result = events_api.create_exception(**params)
+            if all_dests is not None:
+                url_params.append(f'allDestinations={str(all_dests).lower()}')
+            if destinations:
+                d = ",".join(destinations) if isinstance(destinations, list) else destinations
+                url_params.append(f'destinations={d}')
+
+            if force_create is not None:
+                url_params.append(f'forceCreate={str(force_create).lower()}')
+
+            if comment:
+                url_params.append(f'comment={comment}')
+
+            #if self.organization:
+            #    url_params.append(f'organization={self.organization}')
+
+            url += '?' + '&'.join(url_params)
+
+            self.logger.info('Creating exception for event %s', event_id)
+            self.logger.debug('Create-exception URL: %s', url)
+
+            from fortiedr import fortiedr as fortiedr_lib
+            result = fortiedr_lib.fortiedr_connection.send(url)
+            
+            # Log the full error response for debugging
+            if not result.get('status'):
+                self.logger.error('Exception creation FAILED. Full API response: %s', json.dumps(result.get('data', {}), indent=2, default=str))
+            
             return result
         except Exception as e:
             self.logger.error('Failed to create exception for event %s: %s', event_id, e, exc_info=True)

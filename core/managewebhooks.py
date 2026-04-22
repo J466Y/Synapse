@@ -40,14 +40,17 @@ def manageWebhook(webhookData, cfg, automation_config, modules):
             report_action = automations.parse_hooks()
 
     if cfg.getboolean('Automation', 'enabled'):
-         logger.info('Enabling Use Case Automation')
-         uc_automation = Automator(webhook, cfg, automation_config, modules)
-         report_action = uc_automation.check_automation()
+        logger.info('Enabling Use Case Automation')
+        uc_automation = Automator(webhook, cfg, automation_config, modules)
+        report_action = uc_automation.check_automation()
 
     #Check if an action is performed for the webhook
     if report_action:
         report['action'] = report_action
-        report['success'] = True
+        if isinstance(report_action, dict):
+            report['success'] = report_action.get('status', True)
+        else:
+            report['success'] = True
     else:
         report['success'] = False
     
