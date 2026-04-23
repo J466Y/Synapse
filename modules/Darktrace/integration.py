@@ -128,6 +128,11 @@ class Integration(Main):
 
     def allBreaches2Alert(self, timerange_minutes=60):
         self.logger.info("Darktrace.allBreaches2Alert starts (timerange: %s min)", timerange_minutes)
+
+        if not getattr(self.connector, 'health_check', lambda: True)():
+            self.logger.warning("Target server is unreachable. Aborting pull to prevent hangs.")
+            return {'success': False, 'reason': 'server_down'}
+
         report = {'success': True, 'events': []}
 
         to_dt = datetime.datetime.now()

@@ -1,0 +1,14 @@
+{
+    "qradar": {
+        "failures": 0,
+        "next_attempt": 0
+    },
+    "fortiedr": {
+        "failures": 0,
+        "next_attempt": 0
+    },
+    "darktrace": {
+        "failures": 2,
+        "next_attempt": 1776945661.3308625
+    }
+}

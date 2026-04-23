@@ -15,6 +15,7 @@ class DarktraceConnector:
         """
         self.logger = logging.getLogger(__name__)
         self.cfg = cfg
+        self.client = None
         
         try:
             self.host = self.cfg.get('Darktrace', 'host')
@@ -30,6 +31,20 @@ class DarktraceConnector:
             self.logger.error('Failed to initialize Darktrace connector: %s', e, exc_info=True)
             raise
 
+    def health_check(self):
+        """
+        Quickly check if the target server is reachable on port 443.
+        Returns True if reachable, False otherwise.
+        """
+        import socket
+        self.logger.debug("Performing health check on target server %s", self.host)
+        try:
+            with socket.create_connection((self.host, 443), timeout=3):
+                return True
+        except (socket.timeout, socket.error):
+            self.logger.warning("Darktrace server %s is unreachable", self.host)
+            return False
+
     def authenticate(self):
         """
         Initialize the DarktraceClient
@@ -40,7 +55,7 @@ class DarktraceConnector:
                 host=self.host,
                 public_token=self.public_token,
                 private_token=self.private_token,
-                verify=self.cert_verification
+                verify_ssl=self.cert_verification
             )
             self.logger.info('Darktrace client initialized successfully')
             return {'status': True, 'data': 'Client initialized'}
@@ -56,6 +71,9 @@ class DarktraceConnector:
         :return: list of breach dicts or empty list
         """
         self.logger.debug('Fetching Darktrace breaches from %s to %s', from_time, to_time)
+        if not self.client:
+            self.logger.error('Cannot get Darktrace breaches: client not initialized')
+            return []
         try:
             # We want readable fields and device information at the top
             breaches_data = self.client.breaches.get(
@@ -75,6 +93,9 @@ class DarktraceConnector:
         :param pbid: specific breach ID
         """
         self.logger.debug('Acknowledging Darktrace breach: %s', pbid)
+        if not self.client:
+            self.logger.error('Cannot acknowledge Darktrace breach: client not initialized')
+            return {'status': False, 'data': 'Client not initialized'}
         try:
             result = self.client.breaches.acknowledge(pbid=pbid)
             return {'status': True, 'data': result}
@@ -89,6 +110,9 @@ class DarktraceConnector:
         :param comment: string comment to add
         """
         self.logger.debug('Adding comment to Darktrace breach: %s', pbid)
+        if not self.client:
+            self.logger.error('Cannot add comment: client not initialized')
+            return {'status': False, 'data': 'Client not initialized'}
         try:
             result = self.client.breaches.add_comment(pbid=pbid, message=comment)
             return {'status': True, 'data': result}

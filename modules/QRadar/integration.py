@@ -247,6 +247,10 @@ class Integration(Main):
         """
         self.logger.info('%s.allOffense2Alert starts', __name__)
 
+        if not getattr(self.qradarConnector, 'health_check', lambda: True)():
+            self.logger.warning("Target server is unreachable. Aborting pull to prevent hangs.")
+            return {'success': False, 'reason': 'server_down'}
+
         report = dict()
         report['success'] = True
         report['offenses'] = list()

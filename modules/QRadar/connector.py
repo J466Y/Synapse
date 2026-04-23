@@ -36,6 +36,21 @@ class QRadarConnector:
             self.redis_sip = redis.StrictRedis(host="localhost", port=6379, db=0)
             self.redis_dip = redis.StrictRedis(host="localhost", port=6379, db=1)
 
+    def health_check(self):
+        """
+        Quickly check if the QRadar server is reachable on port 443.
+        Returns True if reachable, False otherwise.
+        """
+        import socket
+        server = self.cfg.get('QRadar', 'server')
+        self.logger.debug("Performing health check on QRadar server %s", server)
+        try:
+            with socket.create_connection((server, 443), timeout=3):
+                return True
+        except (socket.timeout, socket.error):
+            self.logger.warning("QRadar server %s is unreachable", server)
+            return False
+
     def formatDate(self, qradarTimeStamp):
         # Define timezones
         current_timezone = tz.gettz('UTC')

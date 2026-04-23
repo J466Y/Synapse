@@ -218,6 +218,11 @@ class Integration(Main):
         Pull events and create alerts in TheHive with deduplication
         """
         self.logger.info("FortiEDR.allEvents2Alerts starts (timerange: %s min)", timerange_minutes)
+        
+        if not getattr(self.fortiedrConnector, 'health_check', lambda: True)():
+            self.logger.warning("Target server is unreachable. Aborting pull to prevent hangs.")
+            return {'success': False, 'reason': 'server_down'}
+
         report = {'success': True, 'events': []}
         
         result = self.fortiedrConnector.list_events(timerange_minutes=timerange_minutes)

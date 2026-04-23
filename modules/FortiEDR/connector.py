@@ -31,6 +31,20 @@ class FortiEDRConnector:
             self.logger.error('Failed to initialize FortiEDR connector: %s', e, exc_info=True)
             raise
 
+    def health_check(self):
+        """
+        Quickly check if the target server is reachable on port 443.
+        Returns True if reachable, False otherwise.
+        """
+        import socket
+        self.logger.debug("Performing health check on target server %s", self.host)
+        try:
+            with socket.create_connection((self.host, 443), timeout=3):
+                return True
+        except (socket.timeout, socket.error):
+            self.logger.warning("FortiEDR server %s is unreachable", self.host)
+            return False
+
     def authenticate(self):
         """
         Authenticate with FortiEDR
