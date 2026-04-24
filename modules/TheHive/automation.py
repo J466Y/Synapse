@@ -176,14 +176,77 @@ class Automation():
         - operation == 'Creation'
         - dataType is one of: ip, domain, fqdn, hash
         """
-        # Only process new artifact (observable) creation
-        if not self.webhook.isNewArtifact():
+        # List of observables to process
+        observables_to_process = []
+
+        if self.webhook.isNewArtifact():
+            # It's a single artifact creation
+            observables_to_process.append(self.webhook.data.get('object', {}))
+        elif self.webhook.isNewCase() or self.webhook.isNewAlert():
+            # It's a case or alert creation, which may contain bundled artifacts
+            obj = self.webhook.data.get('object', {})
+            if 'artifacts' in obj and isinstance(obj['artifacts'], list):
+                observables_to_process.extend(obj['artifacts'])
+        else:
             return False
 
-        observable = self.webhook.data.get('object', {})
-        data_type = observable.get('dataType', '')
-        observable_id = observable.get('_id') or observable.get('id')
-        observable_data = observable.get('data', '')
+        if not observables_to_process:
+            return False
+
+        total_success = 0
+        total_fail = 0
+
+        for observable in observables_to_process:
+            data_type = observable.get('dataType', '')
+            observable_id = observable.get('_id') or observable.get('id')
+            observable_data = observable.get('data', '')
+
+            # Check if this dataType has enrichment configured
+            if data_type not in self.enrichment_config:
+                continue
+
+            enrichment = self.enrichment_config[data_type]
+            analyzers = enrichment.get('analyzers', [])
+            blacklist = enrichment.get('blacklist', [])
+
+            if not analyzers:
+                continue
+
+            # Check IP blacklist
+            if data_type == 'ip' and blacklist:
+                if self._is_blacklisted_ip(observable_data, blacklist):
+                    logger.info('Observable %s (%s) is blacklisted, skipping enrichment',
+                               observable_data, observable_id)
+                    continue
+
+            # Run all configured analyzers
+            logger.info('Starting enrichment for %s observable %s (%s) with %d analyzers',
+                        data_type, observable_data, observable_id, len(analyzers))
+
+            for analyzer in analyzers:
+                try:
+                    logger.info('Running analyzer %s for observable %s',
+                               analyzer, observable_id)
+                    self.TheHiveConnector.runAnalyzer(
+                        self.cortex_instance,
+                        observable_id,
+                        analyzer
+                    )
+                    total_success += 1
+                except Exception as e:
+                    logger.error('Failed to run analyzer %s for observable %s: %s',
+                                analyzer, observable_id, e)
+                    total_fail += 1
+
+        if total_success > 0 or total_fail > 0:
+            self.report_action = {
+                'status': total_success > 0,
+                'message': f'Enrichment completed: {total_success} analyzers launched, {total_fail} failed'
+            }
+            logger.info('Enrichment result: %s', self.report_action['message'])
+            return self.report_action
+        
+        return False
 
         # Check if this dataType has enrichment configured
         if data_type not in self.enrichment_config:
