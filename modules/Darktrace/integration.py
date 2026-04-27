@@ -31,15 +31,42 @@ class Integration(Main):
         pbid = breach.get('pbid')
         enriched['id'] = pbid
 
-        device = breach.get('device', {})
-        if isinstance(device, dict):
-            hostname = device.get('hostname')
-            if hostname:
-                artifacts.append({'data': hostname, 'dataType': 'hostname', 'message': 'Darktrace Device Hostname', 'tags': ['Darktrace', 'endpoint']})
+        # Check 'deviceattop' vs 'device' struct
+        hostname = breach.get('hostname') or breach.get('device', {}).get('hostname')
+        if hostname:
+            artifacts.append({'data': hostname, 'dataType': 'hostname', 'message': 'Darktrace Device Hostname', 'tags': ['Darktrace', 'endpoint']})
+        
+        ip = breach.get('ip') or breach.get('device', {}).get('ip')
+        if ip:
+            artifacts.append({'data': ip, 'dataType': 'ip', 'message': 'Darktrace Device IP', 'tags': ['Darktrace', 'endpoint']})
             
-            ip = device.get('ip')
-            if ip:
-                artifacts.append({'data': ip, 'dataType': 'ip', 'message': 'Darktrace Device IP', 'tags': ['Darktrace', 'endpoint']})
+        macaddress = breach.get('macaddress') or breach.get('device', {}).get('macaddress')
+        if macaddress:
+            artifacts.append({'data': macaddress, 'dataType': 'mac', 'message': 'Darktrace Device MAC', 'tags': ['Darktrace', 'endpoint']})
+
+        # Process triggered components
+        components = breach.get('triggeredComponents', [])
+        for c in components:
+            filters = c.get('triggeredFilters', [])
+            for f in filters:
+                filter_type = f.get('filterType', '')
+                value = f.get('trigger', {}).get('value')
+                if not value or not isinstance(value, str):
+                    continue
+                
+                # Basic mapping
+                dt_type = None
+                if 'hostname' in filter_type.lower() or 'domain' in filter_type.lower():
+                    dt_type = 'fqdn'
+                elif ' ip' in filter_type.lower() or filter_type.lower().startswith('ip '):
+                    dt_type = 'ip'
+                elif 'uri' in filter_type.lower() or 'url' in filter_type.lower():
+                    dt_type = 'url'
+                
+                if dt_type:
+                    # check for duplicates
+                    if not any(a['data'] == value and a['dataType'] == dt_type for a in artifacts):
+                        artifacts.append({'data': value, 'dataType': dt_type, 'message': f'Darktrace: {filter_type}', 'tags': ['Darktrace']})
 
         # Tags processing
         tags = ['Darktrace']
@@ -66,8 +93,16 @@ class Integration(Main):
         return enriched
 
     def darktraceBreachToHiveAlert(self, breach):
-        # Severity mapping: Score is 0-100.
+        # Severity mapping: Score is 0.0-1.0 from API, but we want 0-100.
         score = breach.get('score', 0)
+        if isinstance(score, (int, float)):
+            if score <= 1.0:
+                score = int(score * 100)
+            else:
+                score = int(score)
+        else:
+            score = 0
+            
         if score >= 80:
             severity = 4
         elif score >= 60:
@@ -80,12 +115,40 @@ class Integration(Main):
         case_template = self.cfg.get('Darktrace', 'case_template', fallback='Darktrace Breach')
         pbid = breach.get('pbid') or breach.get('id')
 
+        model_obj = breach.get('model', {})
+        target_model = model_obj.get('then') or model_obj.get('now') or model_obj
+        model_name = target_model.get('name') or breach.get('modelName') or 'N/A'
+        
         description = "### Darktrace Model Breach\n\n"
         description += f"* **Breach ID (PBID):** {pbid}\n"
         description += f"* **Score:** {score}\n"
-        
-        model_name = breach.get('model', {}).get('name') if isinstance(breach.get('model'), dict) else breach.get('modelName', 'N/A')
         description += f"* **Model:** {model_name}\n"
+
+        model_desc = target_model.get('description')
+        if model_desc:
+            description += f"\n**Description / Action:**\n{model_desc}\n"
+            
+        mitre_info = target_model.get('mitre', {})
+        if mitre_info:
+            tactics = ', '.join(mitre_info.get('tactics', []))
+            techniques = ', '.join(mitre_info.get('techniques', []))
+            if tactics or techniques:
+                description += f"\n**MITRE ATT&CK:**\n"
+                if tactics:
+                    description += f"- Tactics: {tactics}\n"
+                if techniques:
+                    description += f"- Techniques: {techniques}\n"
+
+        # Check components for additional details in description
+        components = breach.get('triggeredComponents', [])
+        if components:
+            description += "\n**Triggered Components:**\n"
+            for c in components:
+                filters = c.get('triggeredFilters', [])
+                for f in filters:
+                    filter_type = f.get('filterType', '')
+                    value = f.get('trigger', {}).get('value', 'N/A')
+                    description += f"- {filter_type}: {value}\n"
 
         # Date handling: TheHive 4 requires epoch milliseconds
         event_time = breach.get('time')
@@ -135,12 +198,12 @@ class Integration(Main):
 
         report = {'success': True, 'events': []}
 
-        to_dt = datetime.datetime.now()
+        to_dt = datetime.datetime.now(datetime.timezone.utc)
         from_dt = to_dt - datetime.timedelta(minutes=int(timerange_minutes))
-        from_time = from_dt.strftime("%Y-%m-%d %H:%M:%S")
-        to_time = to_dt.strftime("%Y-%m-%d %H:%M:%S")
+        starttime_ms = int(from_dt.timestamp() * 1000)
+        endtime_ms = int(to_dt.timestamp() * 1000)
 
-        breaches = self.connector.get_breaches(from_time, to_time)
+        breaches = self.connector.get_breaches(starttime_ms, endtime_ms)
         if not isinstance(breaches, list):
             self.logger.error("Failed to pull breaches: expected list")
             report['success'] = False

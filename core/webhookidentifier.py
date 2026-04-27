@@ -86,7 +86,7 @@ class Webhook:
 
         self.logger.debug('%s.isArtifact starts', __name__)
 
-        if self.data['objectType'] == 'case_artifact':
+        if self.data.get('objectType') in ['case_artifact', 'observable']:
             return True
         else:
             return False

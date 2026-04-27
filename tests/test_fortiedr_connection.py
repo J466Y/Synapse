@@ -37,7 +37,9 @@ def test_connection():
             events = events_result['data']
             print(f"[+] Successfully fetched {len(events)} events")
             if events:
-                print(f"[+] First event ID: {events[0].get('id')}")
+                first_event = events[0]
+                print(f"[+] First event keys: {list(first_event.keys())}")
+                print(f"[+] First event ID: {first_event.get('id') or first_event.get('eventId')}")
         else:
             print(f"[-] Failed to fetch events: {events_result['data']}")
 

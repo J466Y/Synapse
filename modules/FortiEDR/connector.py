@@ -85,7 +85,10 @@ class FortiEDRConnector:
             if timerange_minutes:
                 # Calculate time range
                 # FortiEDR API uses yyyy-MM-dd HH:mm:ss for firstSeenFrom/To
-                now = datetime.now(timezone.utc)
+                # We need it in CEST (Europe/Madrid) as per user request
+                import zoneinfo
+                tz = zoneinfo.ZoneInfo('Europe/Madrid')
+                now = datetime.now(tz)
                 start_time = now - timedelta(minutes=timerange_minutes)
                 
                 params['lastSeenFrom'] = start_time.strftime('%Y-%m-%d %H:%M:%S')

@@ -63,22 +63,22 @@ class DarktraceConnector:
             self.logger.error('Unexpected error during Darktrace initialization: %s', e, exc_info=True)
             return {'status': False, 'data': str(e)}
 
-    def get_breaches(self, from_time, to_time):
+    def get_breaches(self, starttime_ms, endtime_ms):
         """
         Fetch recent model breaches
-        :param from_time: Start time in "YYYY-MM-DD HH:MM:SS"
-        :param to_time: End time in "YYYY-MM-DD HH:MM:SS"
+        :param starttime_ms: Start time in epoch ms
+        :param endtime_ms: End time in epoch ms
         :return: list of breach dicts or empty list
         """
-        self.logger.debug('Fetching Darktrace breaches from %s to %s', from_time, to_time)
+        self.logger.debug('Fetching Darktrace breaches from %s to %s', starttime_ms, endtime_ms)
         if not self.client:
             self.logger.error('Cannot get Darktrace breaches: client not initialized')
             return []
         try:
             # We want readable fields and device information at the top
             breaches_data = self.client.breaches.get(
-                from_time=from_time,
-                to_time=to_time,
+                starttime=starttime_ms,
+                endtime=endtime_ms,
                 expandenums=True,
                 deviceattop=True
             )
