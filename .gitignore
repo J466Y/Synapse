@@ -117,3 +117,4 @@ ENV/
 *.swp
 .vscode/settings.json
 logs/synapse.log.*
+scripts/backoff_state.json

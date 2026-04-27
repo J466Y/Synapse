@@ -244,9 +244,15 @@ class Automators(Main):
         #  Define variables and actions based on certain webhook types
         #  Alerts
         self.alert_id = webhook.data['object']['id']
+        self.description = webhook.data['object'].get('description', '')
         # parsing payload events from the alert description
-        self.payload = re.search(r'```([\s\S]+)```', str(webhook.data['object']))
-        self.logger.debug('Found the payload: {}'.format(self.payload.group(1)))
+        self.payload = re.search(r'```([\s\S]+)```', self.description)
+        
+        if self.payload:
+            self.logger.debug('Found the payload: {}'.format(self.payload.group(1)))
+        else:
+            self.logger.warning('No payload block (```) found in alert description')
+            return False
 
         self.enriched = False
 

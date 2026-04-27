@@ -12,8 +12,10 @@ Supported observable types: ip, domain, fqdn, hash
 
 import logging
 import ipaddress
+import re
 
 from modules.TheHive.connector import TheHiveConnector
+from modules.Cortex.connector import CortexConnector
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +109,7 @@ class Automation():
         self.webhook = webhook
         self.cfg = cfg
         self.TheHiveConnector = TheHiveConnector(cfg)
+        self.CortexConnector = CortexConnector(cfg)
         self.report_action = 'None'
 
         # Load enrichment configuration from synapse.conf or use defaults
@@ -167,14 +170,38 @@ class Automation():
             return False
         return False
 
+    def _extract_observables_from_text(self, text):
+        """
+        Extract potential observables from text using regex.
+        Returns a list of artifact-like dicts.
+        """
+        extracted = []
+        
+        # Regex patterns
+        patterns = {
+            'ip': r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b',
+            'domain': r'\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}\b',
+            'hash': r'\b[a-fA-F0-9]{32}\b|\b[a-fA-F0-9]{40}\b|\b[a-fA-F0-9]{64}\b'
+        }
+
+        for data_type, pattern in patterns.items():
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            for match in set(matches):  # De-duplicate
+                extracted.append({
+                    'dataType': data_type,
+                    'data': match,
+                    'id': f'extracted-{data_type}-{match}' # Synthetic ID for logging
+                })
+        
+        return extracted
+
     def parse_hooks(self):
         """
         Parse incoming webhooks and trigger enrichment for new observables.
 
         Only acts on webhooks where:
-        - objectType == 'case_artifact'
+        - objectType == 'case_artifact', 'case', or 'alert'
         - operation == 'Creation'
-        - dataType is one of: ip, domain, fqdn, hash
         """
         # List of observables to process
         observables_to_process = []
@@ -183,10 +210,21 @@ class Automation():
             # It's a single artifact creation
             observables_to_process.append(self.webhook.data.get('object', {}))
         elif self.webhook.isNewCase() or self.webhook.isNewAlert():
-            # It's a case or alert creation, which may contain bundled artifacts
+            # It's a case or alert creation
             obj = self.webhook.data.get('object', {})
-            if 'artifacts' in obj and isinstance(obj['artifacts'], list):
+            
+            # 1. Check for bundled artifacts
+            if 'artifacts' in obj and isinstance(obj['artifacts'], list) and len(obj['artifacts']) > 0:
                 observables_to_process.extend(obj['artifacts'])
+            
+            # 2. Fallback: extract from description if no artifacts are bundled
+            description = obj.get('description', '')
+            if description:
+                logger.info('No bundled artifacts found. Attempting regex extraction from description.')
+                extracted = self._extract_observables_from_text(description)
+                if extracted:
+                    logger.info('Extracted %d observables from description via regex.', len(extracted))
+                    observables_to_process.extend(extracted)
         else:
             return False
 
@@ -225,12 +263,14 @@ class Automation():
 
             for analyzer in analyzers:
                 try:
-                    logger.info('Running analyzer %s for observable %s',
-                               analyzer, observable_id)
-                    self.TheHiveConnector.runAnalyzer(
-                        self.cortex_instance,
-                        observable_id,
-                        analyzer
+                    logger.info('Running analyzer %s directly via Cortex for observable %s',
+                               analyzer, observable_data)
+                    
+                    # Using direct Cortex API as requested
+                    self.CortexConnector.runAnalyzer(
+                        analyzer,
+                        observable_data,
+                        data_type
                     )
                     total_success += 1
                 except Exception as e:
