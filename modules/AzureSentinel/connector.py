@@ -44,12 +44,18 @@ class AzureSentinelConnector:
         }
         try:
             self.response = requests.post(self.url, self.data, headers=self.headers, timeout=60)
-            self.logger.debug("Retrieved token: {}".format(self.response.json()["access_token"]))
-            return self.response.json()["access_token"]
+            token = self.response.json()["access_token"]
+            self.logger.debug("Successfully retrieved Azure Bearer token")
+            return token
         except Exception as e:
             self.logger.error("Could not get Bearer token from Azure Sentinel: {}".format(e))
 
     def azureRequest(self, method, url, data=None, bearer_token_regenerated=False):
+        # Security: Prevent SSRF by validating that the URL belongs to a trusted Azure domain
+        if not url.startswith('https://management.azure.com'):
+            self.logger.error("Blocked potentially malicious SSRF attempt to URL: {}".format(url))
+            return {"success": False, "status_code": 403, "json": {"error": "SSRF Blocked"}}
+
         self.logger.debug("Received the following request to perform: {}".format(url))
         if data:
             self.logger.debug("Received the following request body: {}".format(data))
@@ -346,6 +352,10 @@ class AzureSentinelConnector:
             self.logger.error('Failed to close incident', exc_info=True)
 
     def getRule(self, uri):
+        # Security: Basic validation of URI to prevent unexpected path manipulation
+        if not uri.startswith('/'):
+            self.logger.error("Invalid URI provided to getRule: {}".format(uri))
+            return False
 
         url = 'https://management.azure.com{}?api-version={}'.format(uri, "2020-01-01")
 

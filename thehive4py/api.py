@@ -242,53 +242,45 @@ class TheHiveApi:
         return self.find_cases(**attributes).json()[0]
 
     def get_case_observable(self, artifact_id):
-
         """
-        :param case_id: Artifact identifier
-        :return: (first) observable
+        :param artifact_id: Artifact identifier
+        :return: observable
         ;rtype: json
         """
-
-        req = self.url + "/api/case/artifact/{}".format(artifact_id)
+        # Optimized for TheHive 5 API v1
+        req = self.url + "/api/v1/observable/{}".format(artifact_id)
 
         try:
             return requests.get(req, proxies=self.proxies, auth=self.auth, verify=self.cert, timeout=60)
         except requests.exceptions.RequestException as e:
-            raise CaseObservableException("Case observable search error: {}".format(e))
+            raise CaseObservableException("Case observable fetch error (v1): {}".format(e))
 
     def get_case_observables(self, case_id, **attributes):
-
         """
         :param case_id: Case identifier
         :return: list of observables
         ;rtype: json
         """
 
-        req = self.url + "/api/case/artifact/_search"
-
-        # Add range and sort parameters
-        params = {
-            "range": attributes.get("range", "all"),
-            "sort": attributes.get("sort", [])
-        }
-
-        # Add body
-        parent_criteria = Parent('case', Id(case_id))
-
-        # Append the custom query if specified
-        if "query" in attributes:
-            criteria = And(parent_criteria, attributes["query"])
-        else:
-            criteria = parent_criteria
-
+        # Optimized for TheHive 5 API v1
+        req = self.url + "/api/v1/query"
+        
         data = {
-            "query": criteria
+            "query": [
+                {
+                    "_name": "getCase",
+                    "idOrName": case_id
+                },
+                {
+                    "_name": "observables"
+                }
+            ]
         }
 
         try:
-            return requests.post(req, params=params, json=data, proxies=self.proxies, auth=self.auth, verify=self.cert, timeout=60)
+            return requests.post(req, json=data, proxies=self.proxies, auth=self.auth, verify=self.cert, timeout=60)
         except requests.exceptions.RequestException as e:
-            raise CaseObservableException("Case observables search error: {}".format(e))
+            raise CaseObservableException("Case observables fetch error (v1): {}".format(e))
 
     def get_case_tasks(self, case_id, **attributes):
         req = self.url + "/api/case/task/_search"
@@ -454,6 +446,32 @@ class TheHiveApi:
             return requests.get(req, proxies=self.proxies, auth=self.auth, verify=self.cert, timeout=60)
         except requests.exceptions.RequestException as e:
             raise AlertException("Alert fetch error: {}".format(e))
+
+    def get_alert_artifacts(self, alert_id):
+        """
+        :param alert_id: Alert identifier
+        :return: list of artifacts
+        :rtype: json
+        """
+        # Optimized for TheHive 5 API v1
+        req = self.url + "/api/v1/query"
+        
+        data = {
+            "query": [
+                {
+                    "_name": "getAlert",
+                    "idOrName": alert_id
+                },
+                {
+                    "_name": "observables"
+                }
+            ]
+        }
+
+        try:
+            return requests.post(req, json=data, proxies=self.proxies, auth=self.auth, verify=self.cert, timeout=60)
+        except requests.exceptions.RequestException as e:
+            raise AlertException("Alert artifacts fetch error (v1): {}".format(e))
 
     def find_alerts(self, **attributes):
         """

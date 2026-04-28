@@ -66,8 +66,8 @@ class TheHiveConnector:
 
         self.logger.debug('%s.searchCaseByDescription starts', __name__)
 
-        query = dict()
-        query['_string'] = 'description:"{}"'.format(string)
+        from thehive4py.query import Eq
+        query = Eq('description', string)
         range = 'all'
         sort = []
         response = self.theHiveApi.find_cases(query=query, range=range, sort=sort)
@@ -122,9 +122,19 @@ class TheHiveConnector:
         response = self.theHiveApi.get_case_observables(caseid)
 
         if response.status_code == 200:
-            return response
+            return response.json()
         else:
             self.handleErrors('Case not found', response)
+
+    def getAlertArtifacts(self, alert_id):
+        self.logger.debug('%s.getAlertArtifacts starts', __name__)
+
+        response = self.theHiveApi.get_alert_artifacts(alert_id)
+
+        if response.status_code == 200:
+            return response.json()
+        else:
+            self.handleErrors('Alert not found', response)
 
     def getCaseTasks(self, caseid):
         self.logger.debug('%s.getCaseTasks starts', __name__)

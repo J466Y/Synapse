@@ -176,18 +176,6 @@ class EventScheduler(sched.scheduler):
             else:
                 action(*argument)
         except Exception as e:
-            # Behavior is currently not defined for each automator.
-            
-            # time += self.retry_time
-            # attempts += 1
-            # if attempts <= self.max_retries:
-            #     event = Event(time, priority, action, argument, kwargs, attempts)
-            #     with self._lock:
-            #         heapq.heappush(self._retry, event)
-            #         self.write_heap(self._retry, retry=True)
-            #         self.logger.info(f"Rescheduled {event} after this exception occurred: ({e})")
-            # else:
-            #     self.logger.info(f"Event failed more than three times, deleting: {event} ")
             self.logger.error(f"Event {event} failed with exception", exc_info=True)
 
     def enterabs(self, time, priority, action, argument=(), kwargs={}):
@@ -294,12 +282,6 @@ class EventScheduler(sched.scheduler):
         """
         return(datetime.strptime(time_string, "%Y-%m-%d %H:%M:%S"))
 
-    def keeptheservicerunning(self, arguments):
-        """
-        (Deprecated) The only purpose of this function is to pass, in order to keep the
-        scheduler from running out of tasks and shutting down.
-        """
-        pass
 
     def is_running(self):
         """
@@ -316,7 +298,7 @@ class EventScheduler(sched.scheduler):
         self._paused = True
         self.logger.info("Waiting for threads to finish")
         for action_thread in self.threads:
-            while action_thread.isAlive():
+            while action_thread.is_alive():
                 action_thread.join()
 
     def terminate_scheduler(self, thread):
@@ -329,49 +311,36 @@ class EventScheduler(sched.scheduler):
         self._running = False
         self.logger.info("Waiting for threads to finish")
         for action_thread in self.threads:
-            while action_thread.isAlive():
+            while action_thread.is_alive():
                 action_thread.join()
-        while thread.isAlive():
+        while thread.is_alive():
             thread.join()
         self.logger.info("Threads shut down.")
 
-    def get_heap(self, path):
-        """ Reads the pickle file entry by entry, reconstructing the queue.
-
-        : param str path: a string describing the (full) path to the queue file.
+    def write_heap(self, heap, retry=False):
         """
-        heap = []
-        with open(path, 'rb') as file:
-            while True:
+        Write the current heap to a pickle file atomically.
+        """
+        filename = 'retry.pkl' if retry else 'queue.pkl'
+        temp_filename = filename + '.tmp'
+        temp_path = os.path.join(self.path, temp_filename)
+        final_path = os.path.join(self.path, filename)
+        
+        try:
+            with open(temp_path, 'wb') as f:
+                # Write current time as a baseline for restoration
+                pickle.dump(self.timefunc(), f)
+                # Write each event individually to match restore_queue logic
+                for event in heap:
+                    pickle.dump(event, f)
+            os.replace(temp_path, final_path)
+        except Exception as e:
+            self.logger.error(f"Failed to write heap to {filename}: {e}", exc_info=True)
+            if os.path.exists(temp_path):
                 try:
-                    item = (pickle.load(file))
-                    if isinstance(item, Event):
-                        heap.append(item)
-                except EOFError:
-                    break
-        return(heap)
-
-    def write_heap(self, heap, retry=False, backup=True):
-        """ Writes the queue to a pickle file, item by item.
-        It has options to enable backup creation and to handle the retry queue
-        : param List heap: a heapified list containing scheduled Event objects
-        : param bool retry: causes retry filepaths to be used when enabled.
-        : param bool backup: enables backup creation when enabled.
-        """
-        if retry:
-            if backup:
-                self.backup(retry)
-            with open(self.filepaths["retry_path"], 'wb') as file:
-                pickle.dump(self.timefunc(), file)
-                for event in heap:
-                    pickle.dump(event, file)
-        else:
-            if backup:
-                self.backup(retry)
-            with open(self.filepaths["q_path"], 'wb') as file:
-                pickle.dump(self.timefunc(), file)
-                for event in heap:
-                    pickle.dump(event, file)
+                    os.remove(temp_path)
+                except:
+                    pass
 
     def backup(self, retry=False):
         """ Backs up the main and retry queue by moving the contents to a backup file.

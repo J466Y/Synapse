@@ -12,6 +12,7 @@ import time
 import json
 from flask import Flask, request, jsonify
 from collections import namedtuple
+import threading
 
 # Load custom modules
 from core.functions import getConf, loadAutomationConfiguration
@@ -101,10 +102,9 @@ for cfg_section in cfg.sections():
 
 app = Flask(__name__)
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = True
+# Security: Limit maximum payload size to 10MB to prevent DoS
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
 
-@app.before_first_request
-def initialize():
-    logger = logging.getLogger(__name__)
 
 @app.before_request
 def verify_api_key():
@@ -120,7 +120,7 @@ def verify_api_key():
             return jsonify({'success': False, 'message': 'Missing or invalid Authorization header'}), 401
         
         try:
-            token = auth_header.split(' ')[1]
+            token = auth_header.split()[1]
         except IndexError:
             logger.warning('Malformed Authorization header from {}'.format(request.remote_addr))
             return jsonify({'success': False, 'message': 'Malformed Authorization header'}), 401
@@ -137,17 +137,18 @@ def listenWebhook():
             logger.debug("Webhook: %s" % json.dumps(webhook, indent=4))
             if cfg.getboolean("Automation", 'log_webhooks', fallback=False):
                 webhook_logger.info(json.dumps(webhook, indent=4))
-            workflowReport = manageWebhook(webhook, cfg, automation_config, modules)
-            if workflowReport['success']:
-                return jsonify(workflowReport), 200
-            else:
-                return jsonify(workflowReport), 500
+            
+            # Process webhook in a background thread to stay responsive
+            threading.Thread(
+                target=manageWebhook, 
+                args=(webhook, cfg, automation_config, modules),
+                daemon=True
+            ).start()
+            
+            return jsonify({'success': True, 'message': 'Webhook received and processing started in background'}), 202
         except Exception as e:
             logger.error('Failed to listen or action webhook: %s' % e, exc_info=True)
-            return jsonify({'success': False}), 500
-        logger.warning('Something went wrong for the incoming webhook...: {}'.format(json.dumps(webhook, indent=4)))
-        return "ERROR: Webhook gave an error", 500
-
+            return jsonify({'success': False, 'message': str(e)}), 500
     else:
         return jsonify({'success': False, 'message': 'Not JSON'}), 400
 
@@ -162,8 +163,9 @@ def endpoint(integration):
     except KeyError as e:
         logger.warning('Integration module not found or disabled: {}'.format(integration))
         return "ERROR: Integration module not found or disabled", 404
-    logger.warning('Something went wrong...: {}'.format(integration))
-    return "ERROR: Integration module gave an error", 500
+    except Exception as e:
+        logger.error('Something went wrong in integration {}: {}'.format(integration, e), exc_info=True)
+        return "ERROR: Integration module gave an error", 500
 
 @app.route('/automation_queue', methods=['GET', 'POST'])
 def getQueueInformation():

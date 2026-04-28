@@ -170,65 +170,52 @@ class Automation():
             return False
         return False
 
-    def _extract_observables_from_text(self, text):
-        """
-        Extract potential observables from text using regex.
-        Returns a list of artifact-like dicts.
-        """
-        extracted = []
-        
-        # Regex patterns
-        patterns = {
-            'ip': r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b',
-            'domain': r'\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}\b',
-            'hash': r'\b[a-fA-F0-9]{32}\b|\b[a-fA-F0-9]{40}\b|\b[a-fA-F0-9]{64}\b'
-        }
-
-        for data_type, pattern in patterns.items():
-            matches = re.findall(pattern, text, re.IGNORECASE)
-            for match in set(matches):  # De-duplicate
-                extracted.append({
-                    'dataType': data_type,
-                    'data': match,
-                    'id': f'extracted-{data_type}-{match}' # Synthetic ID for logging
-                })
-        
-        return extracted
-
     def parse_hooks(self):
         """
         Parse incoming webhooks and trigger enrichment for new observables.
 
         Only acts on webhooks where:
         - objectType == 'case_artifact', 'case', or 'alert'
-        - operation == 'Creation'
+        - operation == 'Creation' OR status == 'Imported'
         """
         # List of observables to process
         observables_to_process = []
 
         if self.webhook.isNewArtifact():
-            # It's a single artifact creation
+            # It's a single artifact creation, data is already in the webhook
+            logger.debug('New observable detected in webhook. Processing directly.')
             observables_to_process.append(self.webhook.data.get('object', {}))
-        elif self.webhook.isNewCase() or self.webhook.isNewAlert():
-            # It's a case or alert creation
+        
+        elif self.webhook.isNewCase() or self.webhook.isImportedAlert() or self.webhook.isNewAlert():
+            # It's a case or alert. We fetch observables via API for efficiency and completeness.
             obj = self.webhook.data.get('object', {})
+            obj_id = obj.get('id') or self.webhook.data.get('objectId', '')
+            obj_type = self.webhook.data.get('objectType')
             
-            # 1. Check for bundled artifacts
-            if 'artifacts' in obj and isinstance(obj['artifacts'], list) and len(obj['artifacts']) > 0:
-                observables_to_process.extend(obj['artifacts'])
+            logger.info('Detected %s with ID: %s. Fetching observables...', obj_type, obj_id)
+
+            if obj_type.lower() == 'case':
+                logger.info('Calling TheHive API to get observables for Case %s', obj_id)
+                observables = self.TheHiveConnector.getCaseObservables(obj_id)
+                if observables:
+                    logger.info('Found %d observables in Case %s', len(observables), obj_id)
+                    observables_to_process.extend(observables)
+                else:
+                    logger.warning('No observables returned by API for Case %s', obj_id)
             
-            # 2. Fallback: extract from description if no artifacts are bundled
-            description = obj.get('description', '')
-            if description:
-                logger.info('No bundled artifacts found. Attempting regex extraction from description.')
-                extracted = self._extract_observables_from_text(description)
-                if extracted:
-                    logger.info('Extracted %d observables from description via regex.', len(extracted))
-                    observables_to_process.extend(extracted)
+            elif obj_type.lower() == 'alert':
+                logger.info('Calling TheHive API to get artifacts for Alert %s', obj_id)
+                artifacts = self.TheHiveConnector.getAlertArtifacts(obj_id)
+                if artifacts:
+                    logger.info('Found %d artifacts in Alert %s', len(artifacts), obj_id)
+                    observables_to_process.extend(artifacts)
+                else:
+                    logger.warning('No artifacts returned by API for Alert %s', obj_id)
         else:
             return False
 
         if not observables_to_process:
+            logger.debug('No observables found to process for this webhook.')
             return False
 
         total_success = 0
@@ -238,6 +225,13 @@ class Automation():
             data_type = observable.get('dataType', '')
             observable_id = observable.get('_id') or observable.get('id')
             observable_data = observable.get('data', '')
+            tags = observable.get('tags', [])
+
+            # Skip if already enriched or has reports
+            if observable.get('reports') or 'enriched' in tags:
+                logger.info('Observable %s (%s) already has reports or is tagged as enriched. Skipping.', 
+                            observable_data, observable_id)
+                continue
 
             # Check if this dataType has enrichment configured
             if data_type not in self.enrichment_config:

@@ -10,6 +10,10 @@ from modules.TheHive.connector import TheHiveConnector
 from modules.Cortex.connector import CortexConnector
 from thehive4py.models import CaseTask, Case, Alert, AlertArtifact
 
+import threading
+
+_alert_update_lock = threading.Lock()
+
 class Automators(Main):
     def __init__(self, cfg, use_case_config):
         self.logger = logging.getLogger(__name__)
@@ -237,7 +241,7 @@ class Automators(Main):
     def fieldExtraction(self, action_config, webhook):
         self.logger.info('%s.fieldExtraction starts', __name__)
         #  Only continue if the right webhook is triggered
-        if webhook.isNewAlert():
+        if webhook.isNewAlert() or webhook.isImportedAlert():
             pass
         else:
             return False
@@ -267,12 +271,21 @@ class Automators(Main):
             try:
                 self.logger.info("parsing value for field: {} with regex: {}".format(self.field_name, self.field_config['regex']))
                 self.extracted_value = re.search(self.field_config['regex'], self.payload.group(1))
+                
                 if self.extracted_value is None:
-                    self.fallback_regex = a= re.sub("\'", "\\\\\\\'", self.field_config['regex'])
+                    self.fallback_regex = re.sub("\'", "\\\\\\\'", self.field_config['regex'])
                     self.logger.info("trying fallback: parsing value for field: {} with regex: {}".format(self.field_name, self.fallback_regex))
                     self.extracted_value = re.search(self.fallback_regex, self.payload.group(1))
 
-                matched_v = self.extracted_value.group(1)
+                if self.extracted_value is None:
+                    self.logger.warning("No match found for field: {} in payload".format(self.field_name))
+                    continue
+
+                try:
+                    matched_v = self.extracted_value.group(1)
+                except IndexError:
+                    self.logger.warning("Regex for field: {} does not contain a capturing group. Using full match.".format(self.field_name))
+                    matched_v = self.extracted_value.group(0)
 
                 self.logger.debug("parsed value: {} for field: {} with regex: {}".format(matched_v, self.field_name, self.field_config['regex']))
                 
@@ -300,18 +313,19 @@ class Automators(Main):
                 
                 #  Add results to description
                 try:
-                    self.regex_end_of_table = ' \|\\n\\n\\n'
-                    self.end_of_table = ' |\n\n\n'
-                    self.replacement_description = '|\n | **%s**  | %s %s' % (self.field_name, self.clean_enrichment_results, self.end_of_table)
-                    self.th_alert_description = self.TheHiveConnector.getAlert(self.alert_id)['description']
-                    self.alert_description = re.sub(self.regex_end_of_table, self.replacement_description, self.th_alert_description)
-                    self.enriched = True
+                    with _alert_update_lock:
+                        self.regex_end_of_table = ' \|\\n\\n\\n'
+                        self.end_of_table = ' |\n\n\n'
+                        self.replacement_description = '|\n | **%s**  | %s %s' % (self.field_name, self.clean_enrichment_results, self.end_of_table)
+                        self.th_alert_description = self.TheHiveConnector.getAlert(self.alert_id)['description']
+                        self.alert_description = re.sub(self.regex_end_of_table, self.replacement_description, self.th_alert_description)
+                        self.enriched = True
 
-                    #  Update Alert with the new description field
-                    updated_alert = Alert
-                    updated_alert.description = self.alert_description
-                    self.TheHiveConnector.updateAlert(self.alert_id, updated_alert, ["description"])
-                    self.logger.debug("updated the description of the alert with id: {}".format(self.alert_id))
+                        #  Update Alert with the new description field
+                        updated_alert = Alert
+                        updated_alert.description = self.alert_description
+                        self.TheHiveConnector.updateAlert(self.alert_id, updated_alert, ["description"])
+                        self.logger.debug("updated the description of the alert with id: {}".format(self.alert_id))
 
                 except Exception as e:
                     self.logger.warning("Could not add results from the query to the description. Error: {}".format(e))

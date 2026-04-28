@@ -20,6 +20,7 @@ class RDConnector:
             'https': self.proxy
         }
         self.temp_filepath = self.cfg.get('ResponsibleDisclosure', 'temp_filepath')
+        self.cert = self.cfg.getboolean('ResponsibleDisclosure', 'verify_cert', fallback=True)
         
         # Check If temp_filepath Directory Exists, If Not, Create It
         if not os.path.exists(self.temp_filepath):
@@ -38,7 +39,7 @@ class RDConnector:
 
             app = msal.ConfidentialClientApplication(
                 client_id, authority=authority,
-                client_credential=secret, verify=False, proxies=self.proxies
+                client_credential=secret, verify=self.cert, proxies=self.proxies
             )
 
             result = None
@@ -58,11 +59,15 @@ class RDConnector:
             raise
 
     def scan(self, link_to_load):
+        # Security: Prevent SSRF by validating that the URL belongs to a trusted Microsoft Graph domain
+        if not link_to_load.startswith('https://graph.microsoft.com'):
+            self.logger.error("Blocked potentially malicious SSRF attempt to URL: {}".format(link_to_load))
+            raise ValueError("SSRF Blocked")
 
         self.logger.info('%s.scan starts', __name__)
 
         try:
-            graph_data = requests.get(link_to_load, headers = {'Authorization': 'Bearer ' + self.token, 'Prefer': 'outlook.body-content-type=text'}, verify = False, proxies = self.proxies, timeout=60).json()
+            graph_data = requests.get(link_to_load, headers = {'Authorization': 'Bearer ' + self.token, 'Prefer': 'outlook.body-content-type=text'}, verify = self.cert, proxies = self.proxies, timeout=60).json()
             emails = graph_data['value']
             next_link = ""
             if '@odata.nextLink' in graph_data:
@@ -117,7 +122,7 @@ class RDConnector:
             jsonData=json.dumps(payload)
             
             #post the auto reply email body
-            graph_data = requests.post(self.send_email_endpoint, headers={'Authorization': 'Bearer ' + self.token,'Content-Type': 'application/json'}, data=jsonData, verify=False, timeout=60)
+            graph_data = requests.post(self.send_email_endpoint, headers={'Authorization': 'Bearer ' + self.token,'Content-Type': 'application/json'}, data=jsonData, verify=self.cert, timeout=60)
 
             self.logger.info("Sent thankyou email to {} from {}\n".format(to_email,from_email))
         except Exception as e:
@@ -130,7 +135,7 @@ class RDConnector:
         move_request_url = 'https://graph.microsoft.com/v1.0/users/{}/messages/{}/move'
         http_request = move_request_url.format(email_address, id)
         
-        mailFolders_data = requests.get('https://graph.microsoft.com/v1.0/users/{}/mailFolders'.format(email_address), headers={'Authorization': 'Bearer ' + self.token, 'Content-Type': 'application/json'}, verify=False, proxies=self.proxies, timeout=60).json()
+        mailFolders_data = requests.get('https://graph.microsoft.com/v1.0/users/{}/mailFolders'.format(email_address), headers={'Authorization': 'Bearer ' + self.token, 'Content-Type': 'application/json'}, verify=self.cert, proxies=self.proxies, timeout=60).json()
         try:
             folderId = ''
             for folder in mailFolders_data['value']:
@@ -139,7 +144,7 @@ class RDConnector:
             
             request = {"DestinationId": folderId}
             
-            response = requests.post(http_request, headers={'Authorization': 'Bearer ' + self.token}, json=request, verify=False, proxies=self.proxies, timeout=60)
+            response = requests.post(http_request, headers={'Authorization': 'Bearer ' + self.token}, json=request, verify=self.cert, proxies=self.proxies, timeout=60)
 
             self.logger.info('move response: {}'.format(response))
         except Exception as e:
@@ -155,7 +160,7 @@ class RDConnector:
         attachments_list = []
 
         try:
-            attachment_data = requests.get(list_attachment_url, headers={'Authorization': 'Bearer ' + self.token, 'Content-Type': 'application/json'}, verify=False, proxies=self.proxies, timeout=60).json()
+            attachment_data = requests.get(list_attachment_url, headers={'Authorization': 'Bearer ' + self.token, 'Content-Type': 'application/json'}, verify=self.cert, proxies=self.proxies, timeout=60).json()
             for attachment in  attachment_data['value']:
                 attachments_list.append({'name': attachment['name'], 'isInline': attachment['isInline'], 'contentType': attachment['contentType'], 'attachment_id': attachment['id']})
             return attachments_list
@@ -175,7 +180,7 @@ class RDConnector:
         attachment_dwnld_url = f'https://graph.microsoft.com/v1.0/users/{self.email_address}/messages/{self.id}/attachments/{self.attachment_id}/$value'
 
         try:
-            self.attachement_response = requests.get(attachment_dwnld_url, headers={'Authorization': 'Bearer ' + self.token, 'Content-Type': 'application/json'}, verify=False, proxies=self.proxies, timeout=60)
+            self.attachement_response = requests.get(attachment_dwnld_url, headers={'Authorization': 'Bearer ' + self.token, 'Content-Type': 'application/json'}, verify=self.cert, proxies=self.proxies, timeout=60)
                         
             file_name= self.writeFile()
             return file_name

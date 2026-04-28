@@ -17,13 +17,16 @@ The current features that are implemented at the moment are:
       * QRadar
       * Elasticsearch (Logstash output, Watcher alerts)
       * EWS (Reading E-mails from a mailbox)
-   * Automation
-      * Tag based automation
-   * Automation Tasks
-      * The Hive
-         * Create Tasks
-      * Cortex
-         * Send notifications through the Mailer responder
+    * Automation
+       * Tag based automation
+       * Background processing for webhooks (Non-blocking enrichment)
+       * Universal observable enrichment across all cases
+    * Automation Tasks
+       * The Hive
+          * Create Tasks, handle observable IDs (TheHive 4/5 compatible)
+       * Cortex
+          * Launch analyzers directly through Cortex API
+          * Send notifications through the Mailer responder
       * QRadar
          * Query QRadar through AQL to enrich alerts or add data to cases
       * Slack
@@ -62,9 +65,10 @@ While all OS running python3 can be used for Synapse, we recommend the use of Ub
 
 ## Roadmap
 
-   * Alert creation from QRadar offense
-   * Closing QRadar offense after closing TheHive case or alert
-   * Scheduler to periodically execute workflows
+   * Alert creation from QRadar offense -> Done
+   * Closing QRadar offense after closing TheHive case or alert -> Done
+   * Scheduler to periodically execute workflows -> Done
+   * **ToDo**: Mejorar la detección de dominios para enriquecimiento
 
 ## Special thanks
 Kudos to ninsmith for creating the first version of Synapse of which this enhanced version has been built

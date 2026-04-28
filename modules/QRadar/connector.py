@@ -380,8 +380,14 @@ class QRadarConnector:
             last_updated_timeStr = self.formatDate(
                 last_updated_time
             )
+            # Sanitize offense_id using security module
+            from core.security import validate_numeric_id
+            try:
+                offense_id = validate_numeric_id(offense_id, name="offense_id")
+            except ValueError:
+                return []
 
-            query = ("select  DATEFORMAT(starttime,'YYYY-MM-dd HH:mm:ss') as Date, UTF8(payload) from events where INOFFENSE('" + str(offense_id) + "') ORDER BY Date ASC  LIMIT 3 START '" + start_timeStr + "' STOP '" + last_updated_timeStr + "';")
+            query = ("select  DATEFORMAT(starttime,'YYYY-MM-dd HH:mm:ss') as Date, UTF8(payload) from events where INOFFENSE('" + offense_id + "') ORDER BY Date ASC  LIMIT 3 START '" + start_timeStr + "' STOP '" + last_updated_timeStr + "';")
 
             self.logger.debug("Running the enrichment query for the first 3 payloads: {}".format(query))
             response = self.aqlSearch(query)

@@ -94,17 +94,23 @@ class Automation():
 
         # Close offenses in QRadar
         if self.webhook.isClosedQRadarCase() or self.webhook.isDeletedQRadarCase() or self.webhook.isQRadarAlertMarkedAsRead():
-            if self.webhook.data['operation'] == 'Delete':
-                self.case_id = self.webhook.data['objectId']
+            operation = self.webhook.data.get('operation') or self.webhook.data.get('action')
+            obj_type = self.webhook.data.get('objectType', '').lower()
+            
+            if operation in ['Delete', 'delete']:
+                self.case_id = self.webhook.data.get('objectId')
                 logger.info('Case {} has been deleted'.format(self.case_id))
 
-            elif self.webhook.data['objectType'] == 'alert':
-                self.alert_id = self.webhook.data['objectId']
+            elif obj_type == 'alert':
+                self.alert_id = self.webhook.data.get('objectId')
                 logger.info('Alert {} has been marked as read'.format(self.alert_id))
-                self.QRadarConnector.closeOffense(self.webhook.data['object']['sourceRef'])
+                obj = self.webhook.data.get('object', {})
+                if obj.get('sourceRef'):
+                    self.QRadarConnector.closeOffense(obj.get('sourceRef'))
 
             else:
-                self.case_id = self.webhook.data['object']['id']
+                obj = self.webhook.data.get('object', {})
+                self.case_id = obj.get('id', self.webhook.data.get('objectId'))
                 logger.info('Case {} has been marked as resolved'.format(self.case_id))
 
             if hasattr(self, 'case_id'):

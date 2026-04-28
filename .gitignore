@@ -118,3 +118,4 @@ ENV/
 .vscode/settings.json
 logs/synapse.log.*
 scripts/backoff_state.json
+scripts/backoff_state.json

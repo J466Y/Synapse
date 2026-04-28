@@ -32,6 +32,7 @@ class LexsiConnector:
             'http': self.http_proxy,
             'https': self.https_proxy,
         }
+        self.cert = self.cfg.getboolean('Lexsi', 'verify_cert', fallback=True)
 
         self.__cookiejar = self.__authenticate()
 
@@ -53,7 +54,7 @@ class LexsiConnector:
                               headers=headers,
                               data=data,
                               proxies=self.proxies,
-                              verify=False)
+                              verify=self.cert)
             r.raise_for_status()
             self.logger.debug("Return value {}".format(r.text))
             if "failure" in r.json().keys():

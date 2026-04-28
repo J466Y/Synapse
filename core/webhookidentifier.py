@@ -25,6 +25,10 @@ class Webhook:
         """
 
         self.logger = logging.getLogger('workflows.' + __name__)
+        if not isinstance(webhookData, dict):
+            self.logger.error("Invalid webhook data type: %s. Expected dict." % type(webhookData))
+            raise ValueError("Webhook data must be a dictionary")
+        
         # One liner to generate a sha1 hash from the data to use as an id. Requires json to create a byte array from the dict
         self.id = hashlib.sha1(json.dumps(webhookData).encode('utf-8')).hexdigest()
         self.data = webhookData
@@ -41,7 +45,7 @@ class Webhook:
 
         self.logger.debug('%s.isAlert starts', __name__)
 
-        if self.data['objectType'] == 'alert':
+        if self.data.get('objectType', '').lower() == 'alert':
             return True
         else:
             return False
@@ -56,7 +60,7 @@ class Webhook:
 
         self.logger.debug('%s.isCase starts', __name__)
 
-        if self.data['objectType'] == 'case':
+        if self.data.get('objectType', '').lower() == 'case':
             return True
         else:
             return False
@@ -86,7 +90,8 @@ class Webhook:
 
         self.logger.debug('%s.isArtifact starts', __name__)
 
-        if self.data.get('objectType') in ['case_artifact', 'observable']:
+        obj_type = self.data.get('objectType', '').lower()
+        if obj_type in ['case_artifact', 'observable', 'artifact']:
             return True
         else:
             return False
@@ -115,7 +120,7 @@ class Webhook:
 
         self.logger.debug('%s.isCaseArtifactJob starts', __name__)
 
-        if self.data['objectType'] == 'case_artifact_job':
+        if self.data.get('objectType') == 'case_artifact_job':
             return True
         else:
             return False
@@ -123,14 +128,10 @@ class Webhook:
     def isNew(self):
         """
             Check if the webhook describes a new item
-
-            :return: True if it is new, False if not
-            :rtype: boolean
         """
-
         self.logger.debug('%s.isNew starts', __name__)
-
-        if self.data['operation'] == 'Creation':
+        action = self.data.get('operation') or self.data.get('action')
+        if action in ['Creation', 'create']:
             return True
         else:
             return False
@@ -138,14 +139,10 @@ class Webhook:
     def isUpdate(self):
         """
             Check if the webhook describes an update
-
-            :return: True if it is an update, False if not
-            :rtype: boolean
         """
-
         self.logger.debug('%s.isUpdate starts', __name__)
-
-        if self.data['operation'] == 'Update':
+        action = self.data.get('operation') or self.data.get('action')
+        if action in ['Update', 'update']:
             return True
         else:
             return False
@@ -195,7 +192,8 @@ class Webhook:
 
         self.logger.debug('%s.isDeleted starts', __name__)
 
-        if self.data['operation'] == 'Delete':
+        action = self.data.get('operation') or self.data.get('action')
+        if action in ['Delete', 'delete']:
             return True
         else:
             return False
@@ -210,7 +208,7 @@ class Webhook:
 
         self.logger.debug('%s.isMergedInto starts', __name__)
 
-        if 'mergeInto' in self.data['object']:
+        if 'mergeInto' in self.data.get('object', {}):
             return True
         else:
             return False
@@ -225,7 +223,7 @@ class Webhook:
 
         self.logger.debug('%s.isFromMergedCases starts', __name__)
 
-        if 'mergeFrom' in self.data['object']:
+        if 'mergeFrom' in self.data.get('object', {}):
             return True
         else:
             return False
@@ -391,8 +389,9 @@ class Webhook:
         if (self.isAlert() and self.isMarkedAsRead()):
             # the value 'QRadar_Offenses' is hardcoded at creation by
             # workflow QRadar2alert
-            if self.data['object']['source'] == 'QRadar_Offenses':
-                self.offense_id = self.data['object']['sourceRef']
+            obj = self.data.get('object', {})
+            if obj.get('source') == 'QRadar_Offenses':
+                self.offense_id = obj.get('sourceRef')
                 return True
         return False
 
@@ -763,7 +762,8 @@ class Webhook:
 
         self.logger.debug('%s.isResponsibleDisclosure starts', __name__)
 
-        if ('tags' in self.data['object'] and 'Responsible disclosure' in self.data['object']['tags']):
+        obj = self.data.get('object', {})
+        if ('tags' in obj and 'Responsible disclosure' in obj.get('tags', [])):
             return True
         else:
             return False
@@ -790,7 +790,7 @@ class Webhook:
             :return: True if the conditions are matched, False if not
             :rtype: boolean
         """
-        if (self.isUpdate() and self.isCase() and 'owner' in self.data['details']):
+        if (self.isUpdate() and self.isCase() and 'owner' in self.data.get('details', {})):
             return True
         else:
             return False
@@ -805,7 +805,7 @@ class Webhook:
 
         self.logger.debug('%s.isCase starts', __name__)
 
-        if self.data['objectType'] == 'case_task':
+        if self.data.get('objectType') == 'case_task':
             return True
         else:
             return False
@@ -817,7 +817,7 @@ class Webhook:
             :return: True if the conditions are matched, False if not
             :rtype: boolean
         """
-        if (self.isUpdate() and self.isCaseTask() and 'owner' in self.data['details']):
+        if (self.isUpdate() and self.isCaseTask() and 'owner' in self.data.get('details', {})):
             return True
         else:
             return False
@@ -829,9 +829,10 @@ class Webhook:
             :return: True if the conditions are matched, False if not
             :rtype: boolean
         """
+        details = self.data.get('details', {})
         if (self.isUpdate() and self.isCase() and 
-            'customFields' in self.data['details'] and
-            'Tier' in self.data['details']['customFields']):
+            'customFields' in details and
+            'Tier' in details.get('customFields', {})):
             return True
         else:
             return False
