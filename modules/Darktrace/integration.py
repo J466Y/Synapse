@@ -74,6 +74,24 @@ class Integration(Main):
         if model_name:
             tags.append(f"model:{model_name}")
 
+        # Score calculation for tagging
+        score = breach.get('score', 0)
+        if isinstance(score, (int, float)):
+            if score <= 1.0:
+                score = int(score * 100)
+            else:
+                score = int(score)
+        else:
+            score = 0
+            
+        # Severity Tagging
+        if score < 50:
+            tags.append("Non Critical Event")
+        elif score < 85:
+            tags.append("Important Event")
+        else:
+            tags.append("Critical Event")
+
         artifacts = self.checkObservableExclusionList(artifacts)
         artifacts = self.checkObservableTLP(artifacts)
 
