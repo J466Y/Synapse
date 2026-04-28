@@ -144,6 +144,36 @@ class Automation():
             logger.info('No enrichment configuration found in synapse.conf, using defaults')
             return DEFAULT_ENRICHMENT
 
+    def _is_blacklisted_observable(self, data, data_type, blacklist):
+        """
+        Check if an observable matches any entry in the blacklist.
+        """
+        if not blacklist:
+            return False
+            
+        data = data.strip().lower()
+
+        if data_type == 'ip':
+            return self._is_blacklisted_ip(data, blacklist)
+            
+        elif data_type in ['domain', 'fqdn']:
+            for entry in blacklist:
+                entry = entry.strip().lower()
+                if not entry:
+                    continue
+                # Match exact or subdomain (e.g., entry google.com matches mail.google.com)
+                if data == entry or data.endswith('.' + entry):
+                    logger.debug('%s %s matched blacklist entry %s', data_type.upper(), data, entry)
+                    return True
+                    
+        elif data_type == 'hash':
+            for entry in blacklist:
+                if data == entry.strip().lower():
+                    logger.debug('HASH %s matched blacklist entry', data)
+                    return True
+                    
+        return False
+
     def _is_blacklisted_ip(self, ip_str, blacklist):
         """
         Check if an IP address matches any entry in the blacklist.
@@ -229,11 +259,11 @@ class Automation():
         else:
             return False
 
-        # Automated IP Correlation
+        # Automated Observable Correlation
         try:
-            self.correlateByIP()
+            self.correlateByObservable()
         except Exception as e:
-            logger.error(f"IP Correlation failed: {e}", exc_info=True)
+            logger.error(f"Observable Correlation failed: {e}", exc_info=True)
 
         if not observables_to_process:
             logger.debug('No observables found to process for this webhook.')
@@ -265,9 +295,9 @@ class Automation():
             if not analyzers:
                 continue
 
-            # Check IP blacklist
-            if data_type == 'ip' and blacklist:
-                if self._is_blacklisted_ip(observable_data, blacklist):
+            # Check blacklist
+            if blacklist:
+                if self._is_blacklisted_observable(observable_data, data_type, blacklist):
                     logger.info('Observable %s (%s) is blacklisted, skipping enrichment',
                                 observable_data, observable_id)
                     continue
@@ -303,28 +333,28 @@ class Automation():
         
         return False
 
-    def correlateByIP(self):
+    def correlateByObservable(self):
         """
-        Correlate alerts by IP address. 
-        If multiple alerts share the same non-private, non-blacklisted IP, group them in a case.
+        Correlate alerts by observable data (IP, FQDN, or Hash). 
+        If multiple alerts share the same non-blacklisted observable, group them in a case.
         """
-        logger.debug('Automation.correlateByIP starts')
+        logger.debug('Automation.correlateByObservable starts')
         
         # Configuration
         enabled = self.cfg.getboolean('Correlation', 'enabled', fallback=False)
         if not enabled:
             return False
 
-        blacklist = [ip.strip() for ip in self.cfg.get('Correlation', 'ip_blacklist', fallback="").split(',')]
-        include_private = self.cfg.getboolean('Correlation', 'include_private', fallback=False)
-
         # Extraction logic depends on webhook type
-        ip_to_check = None
+        observable_to_check = None
+        data_type = None
         alert_id = None
 
         if self.webhook.isNewArtifact():
-            if self.webhook.data['object'].get('dataType') == 'ip':
-                ip_to_check = self.webhook.data['object'].get('data')
+            obj = self.webhook.data['object']
+            if obj.get('dataType') in ['ip', 'fqdn', 'domain', 'hash']:
+                observable_to_check = obj.get('data')
+                data_type = obj.get('dataType')
                 # For an artifact, we need to know which alert it belongs to
                 alert_id = self.webhook.data.get('rootId')
                 if alert_id and alert_id.startswith('~'): # It's an alert ID
@@ -336,37 +366,45 @@ class Automation():
             # For a new alert, we check all its artifacts
             artifacts = self.webhook.data['object'].get('artifacts', [])
             for artifact in artifacts:
-                if artifact.get('dataType') == 'ip':
-                    ip_to_check = artifact.get('data')
+                if artifact.get('dataType') in ['ip', 'fqdn', 'domain', 'hash']:
+                    observable_to_check = artifact.get('data')
+                    data_type = artifact.get('dataType')
                     alert_id = self.webhook.data['object']['id']
-                    break # We correlate by the first IP found for now
+                    break # We correlate by the first valid observable found
         
-        if not ip_to_check or not alert_id:
+        if not observable_to_check or not alert_id:
             return False
 
-        # Validate IP
-        try:
-            ip_obj = ipaddress.ip_address(ip_to_check)
-            if not include_private and ip_obj.is_private:
-                logger.info(f"Skipping correlation for private IP: {ip_to_check}")
+        # Load specific blacklist for this type
+        blacklist_key = "fqdn_blacklist" if data_type == "domain" else f"{data_type}_blacklist"
+        blacklist = [val.strip() for val in self.cfg.get('Correlation', blacklist_key, fallback="").split(',')]
+
+        # Validate & Blacklist check
+        if data_type == 'ip':
+            try:
+                ip_obj = ipaddress.ip_address(observable_to_check)
+                include_private = self.cfg.getboolean('Correlation', 'include_private', fallback=False)
+                if not include_private and ip_obj.is_private:
+                    logger.info(f"Skipping correlation for private IP: {observable_to_check}")
+                    return False
+            except ValueError:
+                logger.warning(f"Invalid IP address format: {observable_to_check}")
                 return False
-            if self._is_blacklisted_ip(ip_to_check, blacklist):
-                logger.info(f"Skipping correlation for blacklisted IP: {ip_to_check}")
-                return False
-        except ValueError:
-            logger.warning(f"Invalid IP address format: {ip_to_check}")
+                
+        if self._is_blacklisted_observable(observable_to_check, data_type, blacklist):
+            logger.info(f"Skipping correlation for blacklisted {data_type.upper()}: {observable_to_check}")
             return False
 
-        logger.info(f"Correlating alert {alert_id} by IP {ip_to_check}")
+        logger.info(f"Correlating alert {alert_id} by {data_type.upper()} {observable_to_check}")
 
-        # Search for other alerts with this IP
-        matching_alerts = self.TheHiveConnector.findAlertsByObservable(ip_to_check, 'ip')
+        # Search for other alerts with this observable
+        matching_alerts = self.TheHiveConnector.findAlertsByObservable(observable_to_check, data_type)
         
         # Filter out current alert
         other_alerts = [a for a in matching_alerts if a['id'] != alert_id]
         
         if not other_alerts:
-            logger.debug(f"No other alerts found with IP {ip_to_check}")
+            logger.debug(f"No other alerts found with {data_type.upper()} {observable_to_check}")
             return False
 
         # Check if any alert (including current) is already in a case
