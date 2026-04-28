@@ -660,3 +660,10 @@ class TheHiveConnector:
             self.updateTask(update_task_dict['id'], update_task)
         self.logger.info(f'Adding update to task {task_title} for case {case["id"]}')
         self.addTaskLog(task_id, self.craftTaskLog(updated_description))
+    def runAnalyzer(self, cortex_id, artifact_id, analyzer_id):
+        self.logger.info('%s.runAnalyzer starts for %s', __name__, analyzer_id)
+        response = self.theHiveApi.run_analyzer(cortex_id, artifact_id, analyzer_id)
+        if response.status_code == 201:
+            return response.json()
+        else:
+            self.handleErrors(f'Failed to run analyzer {analyzer_id} on artifact {artifact_id}', response)

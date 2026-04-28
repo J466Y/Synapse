@@ -147,20 +147,35 @@ class Automation():
     def _is_blacklisted_ip(self, ip_str, blacklist):
         """
         Check if an IP address matches any entry in the blacklist.
-        Supports CIDR notation and single IPs.
+        Supports CIDR notation, hyphenated ranges (1.1.1.1-1.1.1.5), and single IPs.
         """
         try:
             observable_ip = ipaddress.ip_address(ip_str)
             for entry in blacklist:
+                entry = entry.strip()
+                if not entry:
+                    continue
                 try:
+                    # Case 1: CIDR Notation (192.168.1.0/24)
                     if '/' in entry:
                         network = ipaddress.ip_network(entry, strict=False)
                         if observable_ip in network:
-                            logger.debug('IP %s matched blacklist entry %s', ip_str, entry)
+                            logger.debug('IP %s matched CIDR blacklist entry %s', ip_str, entry)
                             return True
+                    
+                    # Case 2: Hyphenated Range (212.55.27.130-212.55.27.135)
+                    elif '-' in entry:
+                        start_ip_str, end_ip_str = entry.split('-')
+                        start_ip = ipaddress.ip_address(start_ip_str.strip())
+                        end_ip = ipaddress.ip_address(end_ip_str.strip())
+                        if start_ip <= observable_ip <= end_ip:
+                            logger.debug('IP %s matched range blacklist entry %s', ip_str, entry)
+                            return True
+                    
+                    # Case 3: Single IP
                     else:
                         if observable_ip == ipaddress.ip_address(entry):
-                            logger.debug('IP %s matched blacklist entry %s', ip_str, entry)
+                            logger.debug('IP %s matched single IP blacklist entry %s', ip_str, entry)
                             return True
                 except ValueError:
                     logger.warning('Invalid blacklist entry: %s', entry)
@@ -263,14 +278,14 @@ class Automation():
 
             for analyzer in analyzers:
                 try:
-                    logger.info('Running analyzer %s directly via Cortex for observable %s',
-                                analyzer, observable_data)
+                    logger.info('Running analyzer %s via TheHive for observable %s (%s)',
+                               analyzer, observable_data, observable_id)
                     
-                    # Using direct Cortex API as requested
-                    self.CortexConnector.runAnalyzer(
-                        analyzer,
-                        observable_data,
-                        data_type
+                    # Run via TheHive API to ensure reports are linked
+                    self.TheHiveConnector.runAnalyzer(
+                        self.cortex_instance,
+                        observable_id,
+                        analyzer
                     )
                     total_success += 1
                 except Exception as e:
@@ -335,7 +350,7 @@ class Automation():
             if not include_private and ip_obj.is_private:
                 logger.info(f"Skipping correlation for private IP: {ip_to_check}")
                 return False
-            if ip_to_check in blacklist:
+            if self._is_blacklisted_ip(ip_to_check, blacklist):
                 logger.info(f"Skipping correlation for blacklisted IP: {ip_to_check}")
                 return False
         except ValueError:
