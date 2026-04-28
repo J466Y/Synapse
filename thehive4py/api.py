@@ -500,7 +500,24 @@ class TheHiveApi:
         except requests.exceptions.RequestException as the_exception:
             raise AlertException("Couldn't promote alert to case: {}".format(the_exception))
 
-        return None
+    def merge_alert_into_case(self, alert_id, case_id):
+        """
+            Merges an alert into an existing case.
+
+            :param alert_id: Alert identifier
+            :param case_id: Existing Case identifier
+            :return: TheHive Case
+            :rtype: json
+        """
+        req = self.url + "/api/alert/{}/createCase".format(alert_id)
+        data = {"caseId": case_id}
+
+        try:
+            return requests.post(req, headers={'Content-Type': 'application/json'},
+                                 proxies=self.proxies, auth=self.auth,
+                                 verify=self.cert, data=json.dumps(data))
+        except requests.exceptions.RequestException as the_exception:
+            raise AlertException("Couldn't merge alert into case: {}".format(the_exception))
 
     def run_analyzer(self, cortex_id, artifact_id, analyzer_id):
 

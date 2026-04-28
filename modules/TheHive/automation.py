@@ -214,6 +214,12 @@ class Automation():
         else:
             return False
 
+        # Automated IP Correlation
+        try:
+            self.correlateByIP()
+        except Exception as e:
+            logger.error(f"IP Correlation failed: {e}", exc_info=True)
+
         if not observables_to_process:
             logger.debug('No observables found to process for this webhook.')
             return False
@@ -248,7 +254,7 @@ class Automation():
             if data_type == 'ip' and blacklist:
                 if self._is_blacklisted_ip(observable_data, blacklist):
                     logger.info('Observable %s (%s) is blacklisted, skipping enrichment',
-                               observable_data, observable_id)
+                                observable_data, observable_id)
                     continue
 
             # Run all configured analyzers
@@ -258,7 +264,7 @@ class Automation():
             for analyzer in analyzers:
                 try:
                     logger.info('Running analyzer %s directly via Cortex for observable %s',
-                               analyzer, observable_data)
+                                analyzer, observable_data)
                     
                     # Using direct Cortex API as requested
                     self.CortexConnector.runAnalyzer(
@@ -281,3 +287,113 @@ class Automation():
             return self.report_action
         
         return False
+
+    def correlateByIP(self):
+        """
+        Correlate alerts by IP address. 
+        If multiple alerts share the same non-private, non-blacklisted IP, group them in a case.
+        """
+        logger.debug('Automation.correlateByIP starts')
+        
+        # Configuration
+        enabled = self.cfg.getboolean('Correlation', 'enabled', fallback=False)
+        if not enabled:
+            return False
+
+        blacklist = [ip.strip() for ip in self.cfg.get('Correlation', 'ip_blacklist', fallback="").split(',')]
+        include_private = self.cfg.getboolean('Correlation', 'include_private', fallback=False)
+
+        # Extraction logic depends on webhook type
+        ip_to_check = None
+        alert_id = None
+
+        if self.webhook.isNewArtifact():
+            if self.webhook.data['object'].get('dataType') == 'ip':
+                ip_to_check = self.webhook.data['object'].get('data')
+                # For an artifact, we need to know which alert it belongs to
+                alert_id = self.webhook.data.get('rootId')
+                if alert_id and alert_id.startswith('~'): # It's an alert ID
+                    pass
+                else:
+                    logger.debug("Artifact does not belong to an alert (likely a case). Skipping correlation.")
+                    return False
+        elif self.webhook.isNewAlert():
+            # For a new alert, we check all its artifacts
+            artifacts = self.webhook.data['object'].get('artifacts', [])
+            for artifact in artifacts:
+                if artifact.get('dataType') == 'ip':
+                    ip_to_check = artifact.get('data')
+                    alert_id = self.webhook.data['object']['id']
+                    break # We correlate by the first IP found for now
+        
+        if not ip_to_check or not alert_id:
+            return False
+
+        # Validate IP
+        try:
+            ip_obj = ipaddress.ip_address(ip_to_check)
+            if not include_private and ip_obj.is_private:
+                logger.info(f"Skipping correlation for private IP: {ip_to_check}")
+                return False
+            if ip_to_check in blacklist:
+                logger.info(f"Skipping correlation for blacklisted IP: {ip_to_check}")
+                return False
+        except ValueError:
+            logger.warning(f"Invalid IP address format: {ip_to_check}")
+            return False
+
+        logger.info(f"Correlating alert {alert_id} by IP {ip_to_check}")
+
+        # Search for other alerts with this IP
+        matching_alerts = self.TheHiveConnector.findAlertsByObservable(ip_to_check, 'ip')
+        
+        # Filter out current alert
+        other_alerts = [a for a in matching_alerts if a['id'] != alert_id]
+        
+        if not other_alerts:
+            logger.debug(f"No other alerts found with IP {ip_to_check}")
+            return False
+
+        # Check if any alert (including current) is already in a case
+        target_case_id = None
+        
+        # 1. Check if current alert has a case
+        current_alert = self.TheHiveConnector.getAlert(alert_id)
+        if current_alert.get('case'):
+            target_case_id = current_alert['case']
+        
+        # 2. Check if others have a case
+        if not target_case_id:
+            for alert in other_alerts:
+                if alert.get('case'):
+                    target_case_id = alert['case']
+                    break
+
+        if target_case_id:
+            logger.info(f"Found existing case {target_case_id} for correlation. Merging...")
+            # If current alert is not in the case, merge it
+            if current_alert.get('case') != target_case_id:
+                self.TheHiveConnector.mergeAlertIntoCase(alert_id, target_case_id)
+            
+            # Ensure all other alerts are also in this case
+            for alert in other_alerts:
+                if alert.get('case') != target_case_id:
+                    try:
+                        self.TheHiveConnector.mergeAlertIntoCase(alert['id'], target_case_id)
+                    except Exception as e:
+                        logger.warning(f"Failed to merge alert {alert['id']} into case {target_case_id}: {e}")
+        else:
+            # No case exists, create a new one from the first alert
+            logger.info(f"No existing case found. Creating new case from alert {other_alerts[0]['id']}...")
+            new_case = self.TheHiveConnector.promoteAlertToCase(other_alerts[0]['id'])
+            target_case_id = new_case['id']
+            
+            # Merge all other alerts (including current)
+            all_alerts = [alert_id] + [a['id'] for a in other_alerts[1:]]
+            for aid in all_alerts:
+                try:
+                    self.TheHiveConnector.mergeAlertIntoCase(aid, target_case_id)
+                except Exception as e:
+                    logger.warning(f"Failed to merge alert {aid} into new case {target_case_id}: {e}")
+
+        return True

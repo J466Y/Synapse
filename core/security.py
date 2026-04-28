@@ -36,3 +36,20 @@ def sanitize_aql_string(text):
     if not text:
         return ""
     return str(text).replace("'", "''")
+
+def is_valid_fqdn(text):
+    """
+    Validates if a string is a valid FQDN.
+    Must contain at least one dot and have a structure of [subdomain].domain.tld
+    """
+    if not text or not isinstance(text, str):
+        return False
+    # Regex for a basic FQDN check
+    # 1. No dots at beginning or end
+    # 2. At least one dot
+    # 3. TLD must be at least 2 chars
+    # 4. Length limits per segment (63) and total (253)
+    if len(text) > 253:
+        return False
+    fqdn_regex = r'^(?![0-9]+$)(?!-)[a-zA-Z0-9-]{1,63}(?<!-)(\.[a-zA-Z0-9-]{1,63}(?<!-))*\.[a-zA-Z]{2,63}$'
+    return bool(re.match(fqdn_regex, text))

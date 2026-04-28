@@ -11,6 +11,7 @@ from core.functions import retrieveSplittedDescription
 from thehive4py.api import TheHiveApi
 from thehive4py.models import Case, CaseTask, CaseTaskLog, CaseObservable, AlertArtifact, Alert
 from thehive4py.query import Eq
+from core.security import is_valid_fqdn
 
 class TheHiveConnector:
     'TheHive connector'
@@ -176,10 +177,31 @@ class TheHiveConnector:
 
         if response.status_code == 201:
             esCaseId = response.json()['id']
-            createdCase = self.theHiveApi.case(esCaseId)
+            createdCase = self.theHiveApi.get_case(esCaseId).json()
             return createdCase
         else:
             self.handleErrors('Case creation failed', response)
+
+    def mergeAlertIntoCase(self, alert_id, case_id):
+        self.logger.debug('%s.mergeAlertIntoCase starts', __name__)
+
+        response = self.theHiveApi.merge_alert_into_case(alert_id, case_id)
+
+        if response.status_code == 201:
+            return response.json()
+        else:
+            self.handleErrors('Alert merge failed', response)
+
+    def findAlertsByObservable(self, data, dataType='ip'):
+        self.logger.debug('%s.findAlertsByObservable starts', __name__)
+        # Query for alerts containing an artifact with the specified data and type
+        query = {
+            "_and": [
+                {"_field": "artifacts.data", "_value": data},
+                {"_field": "artifacts.dataType", "_value": dataType}
+            ]
+        }
+        return self.findAlert(query)
 
     def updateCase(self, case, fields):
         self.logger.debug('%s.updateCase starts', __name__)
@@ -244,7 +266,22 @@ class TheHiveConnector:
     def craftAlertArtifact(self, **attributes):
         self.logger.debug('%s.craftAlertArtifact starts', __name__)
 
-        alertArtifact = AlertArtifact(dataType=attributes["dataType"], message=attributes["message"], data=attributes["data"], tags=attributes['tags'], tlp=attributes['tlp'])
+        data_type = attributes.get("dataType")
+        data_value = attributes.get("data")
+
+        # Security & Data Integrity: Validate FQDN
+        if data_type == 'fqdn':
+            if not is_valid_fqdn(data_value):
+                self.logger.debug(f"Downgrading invalid FQDN '{data_value}' to 'hostname'")
+                data_type = 'hostname'
+
+        alertArtifact = AlertArtifact(
+            dataType=data_type,
+            message=attributes["message"],
+            data=data_value,
+            tags=attributes['tags'],
+            tlp=attributes['tlp']
+        )
 
         return alertArtifact
 

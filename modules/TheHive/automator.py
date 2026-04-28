@@ -51,6 +51,12 @@ class Automators(Main):
         else:
             return False
 
+        # Automated IP Correlation
+        try:
+            self.correlateByIP(webhook)
+        except Exception as e:
+            self.logger.error(f"IP Correlation failed: {e}", exc_info=True)
+
         # Perform actions for the CreateBasicTask action
         self.case_id = webhook.data['object']['case']
         self.title = action_config['title']
@@ -226,7 +232,7 @@ class Automators(Main):
                     # Add the case task
                     self.TheHiveConnector.createTask(self.caseid,self.casetask)
                 
-                self.report_action = 'createTask'
+                self.logger.info('Enrichment result: %s', self.report_action)
                 return self.report_action
 
     def autoCreateCase(self, action_config, webhook):
