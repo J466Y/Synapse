@@ -1,86 +1,66 @@
-# Synapse
+# 🌌 Synapse Framework
 
-Synapse is a middleware application that allows you to connect TheHive with other (security) solutions and automate your incident handling.   
-It leverages TheHive API  to automate case and alert creation.   
+**Synapse** es un middleware de orquestación y automatización de seguridad (SOAR) diseñado para conectar **TheHive** con el ecosistema de defensa de tu organización. Permite transformar alertas aisladas en flujos de trabajo inteligentes, automatizando la creación de casos, el enriquecimiento de observables y la respuesta activa.
 
-Synapse will greatly aid you in achieving higher efficiency when it comes to incident handling and response.
+---
 
-## Big Picture
-Security alerts can come from a great variety of places. Cloud Security Services, SIEMS, EDR, Antivirus and more are all tools that can generate these events.
-It is very beneficial to receive all these alerts in one unified place, which for those who come across this framework is most likely The Hive. As this is epic tool to register and handle their events it has limited functionality when it comes to automation. Hence Synapse!
+## 🚀 Capacidades Principales
 
-Most of the time, the alerts mentioned earlier are part of a use case that implies several actions and conditions.  
-Synapse gathers those into a unified configuration based on your own identifiers.   
+### 🔌 Integraciones de Observabilidad (Ingestión)
+*   **SIEM**: IBM QRadar (AQL Queries), Elasticsearch (Watcher & Logstash).
+*   **EDR/XDR**: **FortiEDR**, **Darktrace** (Breach analysis).
+*   **Email**: Microsoft Graph API (O365), EWS (Exchange).
+*   **Threat Intelligence**: Lexsi, MISP.
 
-The current features that are implemented at the moment are:
-   * Integration
-      * QRadar
-      * Elasticsearch (Logstash output, Watcher alerts)
-      * EWS (Reading E-mails from a mailbox)
-    * Automation
-       * Tag based automation
-       * Background processing for webhooks (Non-blocking enrichment)
-       * Universal observable enrichment across all cases
-    * Automation Tasks
-       * The Hive
-          * Create Tasks, handle observable IDs (TheHive 4/5 compatible)
-       * Cortex
-          * Launch analyzers directly through Cortex API
-          * Send notifications through the Mailer responder
-      * QRadar
-         * Query QRadar through AQL to enrich alerts or add data to cases
-      * Slack
-         * Send notifications to a channel
-      * Teams
-         * Send notifications to a channel
-      
+### 🤖 Automatización y Respuesta
+*   **Enriquecimiento Automático**: Procesamiento de observables en tiempo real.
+*   **Cortex Integration**: Lanzamiento automático de analizadores y responders.
+*   **Notificaciones**: Slack y Microsoft Teams con plantillas dinámicas.
+*   **Respuesta Activa**: Cierre de ofensas en QRadar y gestión de incidentes en Azure Sentinel.
 
+---
 
+## 🛠 Arquitectura de Webhooks
 
+Synapse expone un endpoint centralizado para recibir eventos de TheHive y otras herramientas:
 
+`POST /webhook/listen`
 
+**Características del Pipeline:**
+1.  **Procesamiento Asíncrono**: Los webhooks se gestionan en hilos de fondo para garantizar una respuesta inmediata (`200 OK`) y evitar cuellos de botella.
+2.  **Identificación Dinámica**: Clasificación automática del tipo de evento (New Case, New Artifact, Job Success).
+3.  **Cola Persistente**: Utiliza un sistema de `EventScheduler` con escrituras atómicas para garantizar que ninguna tarea se pierda tras un reinicio.
 
+---
 
+## 🛡 Seguridad de Grado Industrial
 
+Tras nuestra última auditoría de hardening, Synapse incluye protecciones avanzadas:
+*   **Anti-SSRF**: Validación estricta de dominios para peticiones salientes (Azure, Graph API).
+*   **Query Sanitization**: Prevención de inyecciones en AQL y Lucene mediante consultas estructuradas y saneamiento centralizado.
+*   **Atomic Persistence**: Sistema de guardado de cola de tareas a prueba de fallos y corrupción de datos mediante `os.replace`.
+*   **Input Validation**: Validación estricta de payloads JSON, control de tipos y límites de tamaño (DoS protection).
+*   **TLS Enforcement**: Verificación configurable de certificados para prevenir ataques Man-in-the-Middle (MiTM).
 
+---
 
+## 📖 Guía Rápida
 
+1.  **Instalación**: `pip3 install -r requirements.txt`
+2.  **Configuración**: Ajusta los parámetros en `conf/synapse.conf`.
+3.  **Ejecución**: `python3 app.py`
 
-
-
-
-![](docs/img/flows.png)
-
-For detailed explanation on each workflows, have a look at the [workflows page](docs/workflows/README.md).   
-
-## How to use
-
-Have a look at the detailed [user guide](docs/user_guide.md), but in short:
-
-   1. Install dependecies
-   2. Fill in the config file
-   3. Execute: ```python3 app.py```
-
-While all OS running python3 can be used for Synapse, we recommend the use of Ubuntu.   
-
+---
 ## Roadmap
 
-   * Alert creation from QRadar offense -> Done
-   * Closing QRadar offense after closing TheHive case or alert -> Done
-   * Scheduler to periodically execute workflows -> Done
-   * **ToDo**: Mejorar la detección de dominios para enriquecimiento
+   * Cierre automático de incidentes tras resolución en TheHive -> **Completado**
+   * Programador de tareas periódicas robusto -> **Completado**
+   * **ToDo**: Implementación de detección avanzada de dominios TLD para enriquecimiento.
 
-## Special thanks
-Kudos to ninsmith for creating the first version of Synapse of which this enhanced version has been built
+---
+## Agradecimientos Especiales
 
-Kudos to everyone who has showed me how they use tools around The Hive to enrich and automate their alerts and processes.
-It is very hard to remember pieces of code I received from various people. If you recognize your code and would like to be mentioned. Please let me know!
+Kudos a **ninsmith** por la base original de Synapse.
+Kudos a todos los contribuidores de la comunidad de **TheHive** y **Cortex**.
 
-Kudos to Erik Cederstrand for his amazing work on Exchangelib.   
-Check his others projects [here](https://github.com/ecederstrand).   
-
-Kudos to IBM teams for providing a python QRadar API client to the community.   
-Check it [here](https://github.com/ibm-security-intelligence/api-samples).   
-
-## Python naming convention
-https://www.python.org/dev/peps/pep-0008/#package-and-module-names
+*Desarrollado con foco en la eficiencia operativa y la seguridad proactiva.*
