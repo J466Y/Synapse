@@ -269,6 +269,29 @@ class Automation():
             logger.debug('No observables found to process for this webhook.')
             return False
 
+        # IP Enrichment Threshold Check
+        # If a case/alert has more than 30 external IPs, we skip IP enrichment to prevent overloading Cortex.
+        ip_blacklist = self.enrichment_config.get('ip', {}).get('blacklist', [])
+        external_ips_count = len([
+            obs for obs in observables_to_process 
+            if obs.get('dataType') == 'ip' and not self._is_blacklisted_ip(obs.get('data', ''), ip_blacklist)
+        ])
+        
+        skip_ip_msg = ""
+        if external_ips_count > 30:
+            skip_ip_msg = f" (Skipped {external_ips_count} external IPs due to limit)"
+            logger.warning(f'Enrichment limit exceeded: {external_ips_count} external IPs found. '
+                           f'Skipping IP enrichment for this batch to protect Cortex.')
+            # Filter out all IP observables from this batch
+            observables_to_process = [obs for obs in observables_to_process if obs.get('dataType') != 'ip']
+            
+            if not observables_to_process:
+                self.report_action = {
+                    'status': True,
+                    'message': f'Enrichment skipped: Too many external IPs ({external_ips_count})'
+                }
+                return self.report_action
+
         total_success = 0
         total_fail = 0
 
@@ -323,10 +346,10 @@ class Automation():
                                 analyzer, observable_id, e)
                     total_fail += 1
 
-        if total_success > 0 or total_fail > 0:
+        if total_success > 0 or total_fail > 0 or skip_ip_msg:
             self.report_action = {
-                'status': total_success > 0,
-                'message': f'Enrichment completed: {total_success} analyzers launched, {total_fail} failed'
+                'status': total_success > 0 or (skip_ip_msg != "" and total_fail == 0),
+                'message': f'Enrichment completed: {total_success} analyzers launched, {total_fail} failed{skip_ip_msg}'
             }
             logger.info('Enrichment result: %s', self.report_action['message'])
             return self.report_action
