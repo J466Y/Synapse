@@ -8,285 +8,291 @@ from modules.TheHive.connector import TheHiveConnector
 
 
 class Webhook:
-    'Webhook class to identify where the webhook comes from, usual case, QRadar, etc..'
+    "Webhook class to identify where the webhook comes from, usual case, QRadar, etc.."
 
     def __init__(self, webhookData, cfg):
         """
-            Class constructor
+        Class constructor
 
-            :param cfg: Synapse's config
-            :type cfg: ConfigParser
+        :param cfg: Synapse's config
+        :type cfg: ConfigParser
 
-            :param webhookData: the json webhook from TheHive
-            :type webhookData: dict
+        :param webhookData: the json webhook from TheHive
+        :type webhookData: dict
 
-            :return: Object Webhook
-            :rtype: Webhook
+        :return: Object Webhook
+        :rtype: Webhook
         """
 
-        self.logger = logging.getLogger('workflows.' + __name__)
+        self.logger = logging.getLogger("workflows." + __name__)
         if not isinstance(webhookData, dict):
-            self.logger.error("Invalid webhook data type: %s. Expected dict." % type(webhookData))
+            self.logger.error(
+                "Invalid webhook data type: %s. Expected dict." % type(webhookData)
+            )
             raise ValueError("Webhook data must be a dictionary")
-        
+
         # One liner to generate a sha1 hash from the data to use as an id. Requires json to create a byte array from the dict
-        self.id = hashlib.sha1(json.dumps(webhookData).encode('utf-8')).hexdigest()
+        self.id = hashlib.sha1(json.dumps(webhookData).encode("utf-8")).hexdigest()
         self.data = webhookData
         self.TheHiveConnector = TheHiveConnector(cfg)
         self.ext_alert_ids = []
 
     def isAlert(self):
         """
-            Check if the webhook describes an alert
+        Check if the webhook describes an alert
 
-            :return: True if it is an alert, False if not
-            :rtype: boolean
+        :return: True if it is an alert, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isAlert starts', __name__)
+        self.logger.debug("%s.isAlert starts", __name__)
 
-        if self.data.get('objectType', '').lower() == 'alert':
+        if self.data.get("objectType", "").lower() == "alert":
             return True
         else:
             return False
 
     def isCase(self):
         """
-            Check if the webhook describes a case
+        Check if the webhook describes a case
 
-            :return: True if it is a case, False if not
-            :rtype: boolean
+        :return: True if it is a case, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isCase starts', __name__)
+        self.logger.debug("%s.isCase starts", __name__)
 
-        if self.data.get('objectType', '').lower() == 'case':
+        if self.data.get("objectType", "").lower() == "case":
             return True
         else:
             return False
 
     def isAlertArtifact(self):
         """
-            Check if the webhook describes an Alert artifact
+        Check if the webhook describes an Alert artifact
 
-            :return: True if it is an Alert artifact, False if not
-            :rtype: boolean
+        :return: True if it is an Alert artifact, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isAlertArtifact starts', __name__)
+        self.logger.debug("%s.isAlertArtifact starts", __name__)
 
-        if (self.isNewAlert() and 'artifacts' in self.data['object']):
+        if self.isNewAlert() and "artifacts" in self.data["object"]:
             return True
         else:
             return False
 
     def isArtifact(self):
         """
-            Check if the webhook describes an artifact
+        Check if the webhook describes an artifact
 
-            :return: True if it is an artifact, False if not
-            :rtype: boolean
+        :return: True if it is an artifact, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isArtifact starts', __name__)
+        self.logger.debug("%s.isArtifact starts", __name__)
 
-        obj_type = self.data.get('objectType', '').lower()
-        if obj_type in ['case_artifact', 'observable', 'artifact']:
+        obj_type = self.data.get("objectType", "").lower()
+        if obj_type in ["case_artifact", "observable", "artifact"]:
             return True
         else:
             return False
 
     def isNewArtifact(self):
         """
-            Check if the webhook describes a artifact that is created
+        Check if the webhook describes a artifact that is created
 
-            :return: True if it is a artifact created, False if not
-            :rtype: boolean
+        :return: True if it is a artifact created, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isNewArtifact starts', __name__)
+        self.logger.debug("%s.isNewArtifact starts", __name__)
 
-        if (self.isArtifact() and self.isNew()):
+        if self.isArtifact() and self.isNew():
             return True
         return False
 
     def isCaseArtifactJob(self):
         """
-            Check if the webhook describes a case artifact job
+        Check if the webhook describes a case artifact job
 
-            :return: True if it is a case artifact job, False if not
-            :rtype: boolean
+        :return: True if it is a case artifact job, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isCaseArtifactJob starts', __name__)
+        self.logger.debug("%s.isCaseArtifactJob starts", __name__)
 
-        if self.data.get('objectType') == 'case_artifact_job':
+        if self.data.get("objectType") == "case_artifact_job":
             return True
         else:
             return False
 
     def isNew(self):
         """
-            Check if the webhook describes a new item
+        Check if the webhook describes a new item
         """
-        self.logger.debug('%s.isNew starts', __name__)
-        action = self.data.get('operation') or self.data.get('action')
-        if action in ['Creation', 'create']:
+        self.logger.debug("%s.isNew starts", __name__)
+        action = self.data.get("operation") or self.data.get("action")
+        if action in ["Creation", "create"]:
             return True
         else:
             return False
 
     def isUpdate(self):
         """
-            Check if the webhook describes an update
+        Check if the webhook describes an update
         """
-        self.logger.debug('%s.isUpdate starts', __name__)
-        action = self.data.get('operation') or self.data.get('action')
-        if action in ['Update', 'update']:
+        self.logger.debug("%s.isUpdate starts", __name__)
+        action = self.data.get("operation") or self.data.get("action")
+        if action in ["Update", "update"]:
             return True
         else:
             return False
 
     def isMarkedAsRead(self):
         """
-            Check if the webhook describes an marked as read alert
+        Check if the webhook describes an marked as read alert
 
-            :return: True if it is marked as read, False if not
-            :rtype: boolean
+        :return: True if it is marked as read, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isMarkedAsRead starts', __name__)
+        self.logger.debug("%s.isMarkedAsRead starts", __name__)
 
-        if self.data.get('details', {}).get('status') == 'Ignored':
+        if self.data.get("details", {}).get("status") == "Ignored":
             return True
         else:
             return False
 
     def isClosed(self):
         """
-            Check if the webhook describes a closing event
-            if it returns false, it doesn't mean that the case is open
-            if a case is already closed, and a user update something
-            the webhook will not describe a closing event but an update
+        Check if the webhook describes a closing event
+        if it returns false, it doesn't mean that the case is open
+        if a case is already closed, and a user update something
+        the webhook will not describe a closing event but an update
 
-            :return: True if it is a closing event, False if not
-            :rtype: boolean
+        :return: True if it is a closing event, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isClosed starts', __name__)
+        self.logger.debug("%s.isClosed starts", __name__)
 
-        if self.data.get('details', {}).get('status') == 'Resolved':
+        if self.data.get("details", {}).get("status") == "Resolved":
             return True
         else:
             return False
 
     def isDeleted(self):
         """
-            Check if the webhook describes a deleted event
-            if it returns false, it doesn't mean that the case is
-            not deleted. It might already be deleted.
+        Check if the webhook describes a deleted event
+        if it returns false, it doesn't mean that the case is
+        not deleted. It might already be deleted.
 
-            :return: True if it is a deleting event, False if not
-            :rtype: boolean
+        :return: True if it is a deleting event, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isDeleted starts', __name__)
+        self.logger.debug("%s.isDeleted starts", __name__)
 
-        action = self.data.get('operation') or self.data.get('action')
-        if action in ['Delete', 'delete']:
+        action = self.data.get("operation") or self.data.get("action")
+        if action in ["Delete", "delete"]:
             return True
         else:
             return False
 
     def isMergedInto(self):
         """
-            Check if the webhook describes a case merging
+        Check if the webhook describes a case merging
 
-            :return: True if it is a merging event
-            :rtype: boolean
+        :return: True if it is a merging event
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isMergedInto starts', __name__)
+        self.logger.debug("%s.isMergedInto starts", __name__)
 
-        if 'mergeInto' in self.data.get('object', {}):
+        if "mergeInto" in self.data.get("object", {}):
             return True
         else:
             return False
 
     def isFromMergedCases(self):
         """
-            Check if the webhook describes a case that comes from a merging action
+        Check if the webhook describes a case that comes from a merging action
 
-            :return: True if it is case the comes from a merging action
-            :rtype: boolean
+        :return: True if it is case the comes from a merging action
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isFromMergedCases starts', __name__)
+        self.logger.debug("%s.isFromMergedCases starts", __name__)
 
-        if 'mergeFrom' in self.data.get('object', {}):
+        if "mergeFrom" in self.data.get("object", {}):
             return True
         else:
             return False
 
     def isSuccess(self):
         """
-            Check if the webhook describes a successful action
+        Check if the webhook describes a successful action
 
-            :return: True if it is a successful action, False if not
-            :rtype: boolean
+        :return: True if it is a successful action, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isSuccess starts', __name__)
+        self.logger.debug("%s.isSuccess starts", __name__)
 
-        if self.data.get('details', {}).get('status') == "Success":
+        if self.data.get("details", {}).get("status") == "Success":
             return True
         else:
             return False
 
     def isNewAlert(self):
         """
-            Check if the webhook describes a new alert.
+        Check if the webhook describes a new alert.
 
-            :return: True if it is a new alert, False if not
-            :rtype: boolean
+        :return: True if it is a new alert, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isNewAlert starts', __name__)
+        self.logger.debug("%s.isNewAlert starts", __name__)
 
-        if (self.isAlert() and self.isNew()):
+        if self.isAlert() and self.isNew():
             return True
         else:
             return False
 
     def isImportedAlert(self):
         """
-            Check if the webhook describes an imported alert.
+        Check if the webhook describes an imported alert.
 
-            :return: True if it is an imported alert, False if not
-            :rtype: boolean
+        :return: True if it is an imported alert, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isImportedAlert starts', __name__)
+        self.logger.debug("%s.isImportedAlert starts", __name__)
 
-        if (self.isAlert() and self.isUpdate() and self.data.get('details', {}).get('status') == 'Imported'):
+        if (
+            self.isAlert()
+            and self.isUpdate()
+            and self.data.get("details", {}).get("status") == "Imported"
+        ):
             return True
         else:
             return False
 
     def isFromAlert(self, case_id):
         """
-            For a given case_id, search if the case has been opened from
-            an alert, if so return True and add the alert id's to the webhook
+        For a given case_id, search if the case has been opened from
+        an alert, if so return True and add the alert id's to the webhook
 
-            :param case_id: case id
-            :type case_id: str
+        :param case_id: case id
+        :type case_id: str
 
-            :return: True if it is a QRadar case, false if not
-            :rtype: bool
+        :return: True if it is a QRadar case, false if not
+        :rtype: bool
         """
 
         query = dict()
-        query['case'] = str(case_id).strip('~')
+        query["case"] = str(case_id).strip("~")
         results = self.TheHiveConnector.findAlert(query)
 
         if len(results) == 1:
@@ -302,110 +308,121 @@ class Webhook:
 
     def isNewCase(self):
         """
-            Check if the webhook describes a new case.
+        Check if the webhook describes a new case.
 
-            :return: True if it is a new case, False if not
-            :rtype: boolean
+        :return: True if it is a new case, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isNewCase starts', __name__)
+        self.logger.debug("%s.isNewCase starts", __name__)
 
-        if (self.isCase() and self.isNew()):
+        if self.isCase() and self.isNew():
             return True
         else:
             return False
 
     def isQRadar(self):
         """
-            Check if the webhook describes a QRadar Offense
+        Check if the webhook describes a QRadar Offense
 
-            :return: True if it is a QRadar Offense, False if not
-            :rtype: boolean
+        :return: True if it is a QRadar Offense, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isQRadar starts', __name__)
+        self.logger.debug("%s.isQRadar starts", __name__)
 
-        if 'QRadar' in self.data.get('details', {}).get('tags', []) or 'QRadar' in self.data.get('object', {}).get('tags', []):
+        if "QRadar" in self.data.get("details", {}).get(
+            "tags", []
+        ) or "QRadar" in self.data.get("object", {}).get("tags", []):
             return True
         else:
             return False
 
     def isQRadarAlertImported(self):
         """
-            Check if the webhook describes an Imported QRadar alert
+        Check if the webhook describes an Imported QRadar alert
 
-            :return: True if it is a QRadar alert is imported, False if not
-            :rtype: boolean
+        :return: True if it is a QRadar alert is imported, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isQRadarAlertImported starts', __name__)
+        self.logger.debug("%s.isQRadarAlertImported starts", __name__)
 
-        if (self.isImportedAlert() and self.isQRadar()):
+        if self.isImportedAlert() and self.isQRadar():
             return True
         else:
             return False
 
     def isQRadarAlertUpdateFollowTrue(self):
         """
-            Check if the webhook describes an Imported QRadar alert
+        Check if the webhook describes an Imported QRadar alert
 
-            :return: True if it is a QRadar alert is imported, False if not
-            :rtype: boolean
+        :return: True if it is a QRadar alert is imported, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isQRadarAlertImported starts', __name__)
+        self.logger.debug("%s.isQRadarAlertImported starts", __name__)
 
-        if (self.isAlert() and self.isUpdate() and self.isQRadar() and self.data.get('details', {}).get('follow')):
+        if (
+            self.isAlert()
+            and self.isUpdate()
+            and self.isQRadar()
+            and self.data.get("details", {}).get("follow")
+        ):
             return True
         else:
             return False
 
     def isQRadarAlertWithArtifacts(self):
         """
-            Check if the webhook describes an QRadar alert containing artifacts and case information
+        Check if the webhook describes an QRadar alert containing artifacts and case information
 
-            :return: True if it is a QRadar alert containing artifacts, False if not
-            :rtype: boolean
+        :return: True if it is a QRadar alert containing artifacts, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isQRadarAlertWithArtifacts starts', __name__)
+        self.logger.debug("%s.isQRadarAlertWithArtifacts starts", __name__)
 
-        if (self.isAlert() and self.isQRadar()) and 'artifacts' in self.data.get('details', {}) and 'case' in self.data.get('object', {}):
+        if (
+            (self.isAlert() and self.isQRadar())
+            and "artifacts" in self.data.get("details", {})
+            and "case" in self.data.get("object", {})
+        ):
             return True
         else:
             return False
 
     def isQRadarAlertMarkedAsRead(self):
         """
-            Check if the webhook describes a QRadar alert marked as read
-            "store" the offense_id in the webhook attribute "offense_id"
+        Check if the webhook describes a QRadar alert marked as read
+        "store" the offense_id in the webhook attribute "offense_id"
 
-            :return: True if it is a QRadar alert marked as read, False if not
-            :rtype: boolean
+        :return: True if it is a QRadar alert marked as read, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isQRadarAlertMarkedAsRead starts', __name__)
+        self.logger.debug("%s.isQRadarAlertMarkedAsRead starts", __name__)
 
-        if (self.isAlert() and self.isMarkedAsRead()):
+        if self.isAlert() and self.isMarkedAsRead():
             # the value 'QRadar_Offenses' is hardcoded at creation by
             # workflow QRadar2alert
-            obj = self.data.get('object', {})
-            if obj.get('source') == 'QRadar_Offenses':
-                self.offense_id = obj.get('sourceRef')
+            obj = self.data.get("object", {})
+            if obj.get("source") == "QRadar_Offenses":
+                self.offense_id = obj.get("sourceRef")
                 return True
         return False
 
     def isNewQRadarCase(self):
         """
-            Check if the webhook describes a new QRadar case,
-            if the case has been opened from a QRadar alert
-            returns True
+        Check if the webhook describes a new QRadar case,
+        if the case has been opened from a QRadar alert
+        returns True
 
-            :return: True if it is a new QRadar case, False if not
-            :rtype: boolean
+        :return: True if it is a new QRadar case, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isNewQRadarCase starts', __name__)
+        self.logger.debug("%s.isNewQRadarCase starts", __name__)
 
         if self.isQRadar() and self.isCase() and self.isNew():
             return True
@@ -414,15 +431,15 @@ class Webhook:
 
     def isUpdateQRadarCase(self):
         """
-            Check if the webhook describes a new QRadar case,
-            if the case has been opened from a QRadar alert
-            returns True
+        Check if the webhook describes a new QRadar case,
+        if the case has been opened from a QRadar alert
+        returns True
 
-            :return: True if it is a new QRadar case, False if not
-            :rtype: boolean
+        :return: True if it is a new QRadar case, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isUpdateQRadarCase starts', __name__)
+        self.logger.debug("%s.isUpdateQRadarCase starts", __name__)
 
         if self.isQRadar() and self.isCase() and self.isUpdate():
             return True
@@ -431,26 +448,26 @@ class Webhook:
 
     def isClosedQRadarCase(self):
         """
-            Check if the webhook describes a closing QRadar case,
-            if the case has been opened from a QRadar alert
-            returns True
-            "store" the offense_id in the webhook attribute "offense_id"
-            If the case is merged, it is not considered to be closed (even if it is
-            from TheHive perspective), as a result, a merged qradar case will not close
-            an offense.
-            However a case created from merged case, where one of the merged case is
-            related to QRadar, will close the linked QRadar offense.
+        Check if the webhook describes a closing QRadar case,
+        if the case has been opened from a QRadar alert
+        returns True
+        "store" the offense_id in the webhook attribute "offense_id"
+        If the case is merged, it is not considered to be closed (even if it is
+        from TheHive perspective), as a result, a merged qradar case will not close
+        an offense.
+        However a case created from merged case, where one of the merged case is
+        related to QRadar, will close the linked QRadar offense.
 
-            :return: True if it is a QRadar alert marked as read, False if not
-            :rtype: boolean
+        :return: True if it is a QRadar alert marked as read, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isClosedQRadarCase starts', __name__)
+        self.logger.debug("%s.isClosedQRadarCase starts", __name__)
 
         try:
             if self.isQRadar() and self.isCase() and self.isClosed():
                 # searching in alerts if the case comes from a QRadar alert
-                case_id = self.data['objectId']
+                case_id = self.data["objectId"]
                 if self.fromQRadar(case_id):
                     return True
 
@@ -460,26 +477,26 @@ class Webhook:
                 # (might be open or already closed)
                 return False
 
-        except Exception as e:
-            self.logger.error('%s.isClosedQRadarCase failed', __name__, exc_info=True)
+        except Exception:
+            self.logger.error("%s.isClosedQRadarCase failed", __name__, exc_info=True)
             raise
 
     def isDeletedQRadarCase(self):
         """
-            Check if the webhook describes deleting a QRadar case,
+        Check if the webhook describes deleting a QRadar case,
 
-            "store" the offense_id in the webhook attribute "offense_id"
+        "store" the offense_id in the webhook attribute "offense_id"
 
-            :return: True if it is deleting a QRadar case, False if not
-            :rtype: boolean
+        :return: True if it is deleting a QRadar case, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isDeletedQRadarCase starts', __name__)
+        self.logger.debug("%s.isDeletedQRadarCase starts", __name__)
 
         try:
             if self.isCase() and self.isDeleted():
                 # searching in alerts if the case comes from a QRadar alert
-                case_id = self.data['objectId']
+                case_id = self.data["objectId"]
                 if self.fromQRadar(case_id):
                     return True
             else:
@@ -487,30 +504,30 @@ class Webhook:
                 # when the webhook has been issued
                 return False
 
-        except Exception as e:
-            self.logger.error('%s.isDeletedQRadarCase failed', __name__, exc_info=True)
+        except Exception:
+            self.logger.error("%s.isDeletedQRadarCase failed", __name__, exc_info=True)
             raise
 
     def fromQRadar(self, case_id):
         """
-            For a given case_id, search if the case has been opened from
-            a QRadar offense, if so adds the offense_id attribute to this object
+        For a given case_id, search if the case has been opened from
+        a QRadar offense, if so adds the offense_id attribute to this object
 
-            :param case_id: case id
-            :type case_id: str
+        :param case_id: case id
+        :type case_id: str
 
-            :return: True if it is a Qradar case and alerts are found, false if not
-            :rtype: bool
+        :return: True if it is a Qradar case and alerts are found, false if not
+        :rtype: bool
         """
 
         if self.isFromAlert(case_id):
-            if hasattr(self, 'alert') and self.alert['source'] == 'QRadar_Offenses':
-                self.ext_alert_id = self.alert['sourceRef']
+            if hasattr(self, "alert") and self.alert["source"] == "QRadar_Offenses":
+                self.ext_alert_id = self.alert["sourceRef"]
                 return True
-            elif hasattr(self, 'alerts'):
+            elif hasattr(self, "alerts"):
                 for alert in self.alerts:
-                    if alert['source'] == 'QRadar_Offenses':
-                        self.ext_alert_ids.append(alert['sourceRef'])
+                    if alert["source"] == "QRadar_Offenses":
+                        self.ext_alert_ids.append(alert["sourceRef"])
                 if len(self.ext_alert_ids) > 0:
                     return True
             else:
@@ -520,73 +537,78 @@ class Webhook:
 
     def isAzureSentinel(self):
         """
-            Check if the webhook describes a AzureSentinel Incident
+        Check if the webhook describes a AzureSentinel Incident
 
-            :return: True if it is a AzureSentinel Incident, False if not
-            :rtype: boolean
+        :return: True if it is a AzureSentinel Incident, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isAzureSentinel starts', __name__)
+        self.logger.debug("%s.isAzureSentinel starts", __name__)
 
-        if 'AzureSentinel' in self.data.get('details', {}).get('tags', []) or 'AzureSentinel' in self.data.get('object', {}).get('tags', []):
+        if "AzureSentinel" in self.data.get("details", {}).get(
+            "tags", []
+        ) or "AzureSentinel" in self.data.get("object", {}).get("tags", []):
             return True
         else:
             return False
 
     def isAzureSentinelAlertMarkedAsRead(self):
         """
-            Check if the webhook describes a AzureSentinel alert marked as read
-            "store" the incidentId in the webhook attribute "incidentId"
+        Check if the webhook describes a AzureSentinel alert marked as read
+        "store" the incidentId in the webhook attribute "incidentId"
 
-            :return: True if it is a AzureSentinel alert marked as read, False if not
-            :rtype: boolean
+        :return: True if it is a AzureSentinel alert marked as read, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isAzureSentinelAlertMarkedAsRead starts', __name__)
+        self.logger.debug("%s.isAzureSentinelAlertMarkedAsRead starts", __name__)
 
-        if (self.isAlert() and self.isMarkedAsRead()):
+        if self.isAlert() and self.isMarkedAsRead():
             # the value 'AzureSentinel_Offenses' is hardcoded at creation by
             # workflow AzureSentinel2alert
-            if self.data['object']['source'] == 'Azure_Sentinel_incidents':
-                self.incidentId = self.data['object']['sourceRef']
+            if self.data["object"]["source"] == "Azure_Sentinel_incidents":
+                self.incidentId = self.data["object"]["sourceRef"]
                 return True
         return False
 
     def isAzureSentinelAlertImported(self):
         """
-            Check if the webhook describes an Imported AzureSentinel alert
+        Check if the webhook describes an Imported AzureSentinel alert
 
-            :return: True if it is a AzureSentinel alert is imported, False if not
-            :rtype: boolean
+        :return: True if it is a AzureSentinel alert is imported, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isAzureSentinelAlertImported starts', __name__)
+        self.logger.debug("%s.isAzureSentinelAlertImported starts", __name__)
 
-        if (self.isImportedAlert() and self.isAzureSentinel()):
+        if self.isImportedAlert() and self.isAzureSentinel():
             return True
         else:
             return False
 
     def fromAzureSentinel(self, case_id):
         """
-            For a given case_id, search if the case has been opened from
-            a Azure Sentinel offense, if so adds the offense_id attribute to this object
+        For a given case_id, search if the case has been opened from
+        a Azure Sentinel offense, if so adds the offense_id attribute to this object
 
-            :param case_id: case id
-            :type case_id: str
+        :param case_id: case id
+        :type case_id: str
 
-            :return: True if it is a Azure Sentinel case and alerts are found, false if not
-            :rtype: bool
+        :return: True if it is a Azure Sentinel case and alerts are found, false if not
+        :rtype: bool
         """
 
         if self.isFromAlert(case_id):
-            if hasattr(self, 'alert') and self.alert['source'] == 'Azure_Sentinel_incidents':
-                self.ext_alert_id = self.alert['sourceRef']
+            if (
+                hasattr(self, "alert")
+                and self.alert["source"] == "Azure_Sentinel_incidents"
+            ):
+                self.ext_alert_id = self.alert["sourceRef"]
                 return True
-            elif hasattr(self, 'alerts'):
+            elif hasattr(self, "alerts"):
                 for alert in self.alerts:
-                    if alert['source'] == 'Azure_Sentinel_incidents':
-                        self.ext_alert_ids.append(alert['sourceRef'])
+                    if alert["source"] == "Azure_Sentinel_incidents":
+                        self.ext_alert_ids.append(alert["sourceRef"])
                 if len(self.ext_alert_ids) > 0:
                     return True
             else:
@@ -594,29 +616,28 @@ class Webhook:
         else:
             return False
 
-
     def isClosedAzureSentinelCase(self):
         """
-            Check if the webhook describes a closing AzureSentinel case,
-            if the case has been opened from a AzureSentinel alert
-            returns True
-            "store" the incidentId in the webhook attribute "incidentId"
-            If the case is merged, it is not considered to be closed (even if it is
-            from TheHive perspective), as a result, a merged AzureSentinel case will not close
-            an incident.
-            However a case created from merged case, where one of the merged case is
-            related to AzureSentinel, will close the linked AzureSentinel incident.
+        Check if the webhook describes a closing AzureSentinel case,
+        if the case has been opened from a AzureSentinel alert
+        returns True
+        "store" the incidentId in the webhook attribute "incidentId"
+        If the case is merged, it is not considered to be closed (even if it is
+        from TheHive perspective), as a result, a merged AzureSentinel case will not close
+        an incident.
+        However a case created from merged case, where one of the merged case is
+        related to AzureSentinel, will close the linked AzureSentinel incident.
 
-            :return: True if it is a AzureSentinel alert marked as read, False if not
-            :rtype: boolean
+        :return: True if it is a AzureSentinel alert marked as read, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isClosedAzureSentinelCase starts', __name__)
+        self.logger.debug("%s.isClosedAzureSentinelCase starts", __name__)
 
         try:
             if self.isAzureSentinel() and self.isCase() and self.isClosed():
                 # searching in alerts if the case comes from a AzureSentinel alert
-                case_id = self.data['objectId']
+                case_id = self.data["objectId"]
                 if self.fromAzureSentinel(case_id):
                     return True
                 else:
@@ -627,14 +648,14 @@ class Webhook:
                     # TODO: unfortunately this only provides a single alert_id, but it should
                     # return the id for every related alert
                     if self.isFromMergedCases():
-                        for case_id in self.data['object']['mergeFrom']:
+                        for case_id in self.data["object"]["mergeFrom"]:
                             if self.fromAzureSentinel(case_id):
-                                # Remove alert_ids for merged cases as the closing mechanism is different from normal cases. 
+                                # Remove alert_ids for merged cases as the closing mechanism is different from normal cases.
                                 # Might be an option to do this differently
-                                if hasattr(self, 'ext_alert_id'):
-                                    delattr(self, 'ext_alert_id')
-                                if hasattr(self, 'ext_alert_ids'):
-                                    delattr(self, 'ext_alert_ids')
+                                if hasattr(self, "ext_alert_id"):
+                                    delattr(self, "ext_alert_id")
+                                if hasattr(self, "ext_alert_ids"):
+                                    delattr(self, "ext_alert_ids")
                                 return True
                         # went through all merged case and none where from AzureSentinel
                         return False
@@ -647,26 +668,28 @@ class Webhook:
                 # (might be open or already closed)
                 return False
 
-        except Exception as e:
-            self.logger.error('%s.isClosedAzureSentinelCase failed', __name__, exc_info=True)
+        except Exception:
+            self.logger.error(
+                "%s.isClosedAzureSentinelCase failed", __name__, exc_info=True
+            )
             raise
 
     def isDeletedAzureSentinelCase(self):
         """
-            Check if the webhook describes deleting a AzureSentinel case,
+        Check if the webhook describes deleting a AzureSentinel case,
 
-            "store" the offense_id in the webhook attribute "offense_id"
+        "store" the offense_id in the webhook attribute "offense_id"
 
-            :return: True if it is deleting a AzureSentinel case, False if not
-            :rtype: boolean
+        :return: True if it is deleting a AzureSentinel case, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isDeletedAzureSentinelCase starts', __name__)
+        self.logger.debug("%s.isDeletedAzureSentinelCase starts", __name__)
 
         try:
             if self.isCase() and self.isDeleted():
                 # searching in alerts if the case comes from a AzureSentinel alert
-                case_id = self.data['objectId']
+                case_id = self.data["objectId"]
                 if self.fromAzureSentinel(case_id):
                     return True
                 else:
@@ -675,7 +698,7 @@ class Webhook:
                     # if one of the merged case is related to AzureSentinel alert
                     # then we consider the case as being from AzureSentinel
                     if self.isFromMergedCases():
-                        for case_id in self.data['object']['mergeFrom']:
+                        for case_id in self.data["object"]["mergeFrom"]:
                             if self.fromAzureSentinel(case_id):
                                 return True
                         # went through all merged case and none where from AzureSentinel
@@ -688,36 +711,46 @@ class Webhook:
                 # when the webhook has been issued
                 return False
 
-        except Exception as e:
-            self.logger.error('%s.isDeletedAzureSentinelCase failed', __name__, exc_info=True)
+        except Exception:
+            self.logger.error(
+                "%s.isDeletedAzureSentinelCase failed", __name__, exc_info=True
+            )
             raise
 
     def isMisp(self):
         """
-            Check if the webhook describes a MISP alert that is created
+        Check if the webhook describes a MISP alert that is created
 
-            :return: True if it is a MISP alert created, False if not
-            :rtype: boolean
+        :return: True if it is a MISP alert created, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isMisp starts', __name__)
+        self.logger.debug("%s.isMisp starts", __name__)
 
-        if self.data.get('object', {}).get('type') == 'misp' or 'misp' in self.data.get('object', {}).get('tags', []) or 'misp' in self.data.get('details', {}).get('tags', []) or any('MISP:type=' in tag for tag in self.data.get('details', {}).get('tags', [])):
+        if (
+            self.data.get("object", {}).get("type") == "misp"
+            or "misp" in self.data.get("object", {}).get("tags", [])
+            or "misp" in self.data.get("details", {}).get("tags", [])
+            or any(
+                "MISP:type=" in tag
+                for tag in self.data.get("details", {}).get("tags", [])
+            )
+        ):
             return True
         else:
             return False
 
     def isNewMispCase(self):
         """
-            Check if the webhook describes a new MISP case,
-            if the case has been opened from a MISP alert
-            returns True
+        Check if the webhook describes a new MISP case,
+        if the case has been opened from a MISP alert
+        returns True
 
-            :return: True if it is a new MISP case, False if not
-            :rtype: boolean
+        :return: True if it is a new MISP case, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isNewMispCase starts', __name__)
+        self.logger.debug("%s.isNewMispCase starts", __name__)
 
         if self.isMisp() and self.isCase() and self.isNew():
             return True
@@ -726,113 +759,124 @@ class Webhook:
 
     def isNewMispAlert(self):
         """
-            Check if the webhook describes a MISP alert that is created
+        Check if the webhook describes a MISP alert that is created
 
-            :return: True if it is a MISP alert created, False if not
-            :rtype: boolean
+        :return: True if it is a MISP alert created, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isNewMispAlert starts', __name__)
+        self.logger.debug("%s.isNewMispAlert starts", __name__)
 
-        if (self.isAlert() and self.isNew() and self.isMisp()):
+        if self.isAlert() and self.isNew() and self.isMisp():
             return True
         return False
 
     def isNewMispArtifact(self):
         """
-            Check if the webhook describes a MISP artifact that is created
+        Check if the webhook describes a MISP artifact that is created
 
-            :return: True if it is a MISP artifact created, False if not
-            :rtype: boolean
+        :return: True if it is a MISP artifact created, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isNewMispArtifact starts', __name__)
+        self.logger.debug("%s.isNewMispArtifact starts", __name__)
 
-        if (self.isArtifact() and self.isNew() and self.isMisp()):
+        if self.isArtifact() and self.isNew() and self.isMisp():
             return True
         return False
 
     def isResponsibleDisclosure(self):
         """
-            Check if the webhook describes a Responsible disclosure alert
+        Check if the webhook describes a Responsible disclosure alert
 
-            :return: True if it is a Responsible disclosure alert, False if not
-            :rtype: boolean
+        :return: True if it is a Responsible disclosure alert, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isResponsibleDisclosure starts', __name__)
+        self.logger.debug("%s.isResponsibleDisclosure starts", __name__)
 
-        obj = self.data.get('object', {})
-        if ('tags' in obj and 'Responsible disclosure' in obj.get('tags', [])):
+        obj = self.data.get("object", {})
+        if "tags" in obj and "Responsible disclosure" in obj.get("tags", []):
             return True
         else:
             return False
 
     def isResponsibleDisclosureAlertImported(self):
         """
-            Check if the webhook describes an Imported Responsible disclosure alert
+        Check if the webhook describes an Imported Responsible disclosure alert
 
-            :return: True if it is a Responsible disclosure alert is imported, False if not
-            :rtype: boolean
+        :return: True if it is a Responsible disclosure alert is imported, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isResponsibleDisclosurealertImported starts', __name__)
+        self.logger.debug("%s.isResponsibleDisclosurealertImported starts", __name__)
 
-        if (self.isImportedAlert() and self.isResponsibleDisclosure()):
+        if self.isImportedAlert() and self.isResponsibleDisclosure():
             return True
         else:
             return False
 
     def isCaseAssigned(self):
         """
-            Check if the webhook describes a case is updated with a user assignment
+        Check if the webhook describes a case is updated with a user assignment
 
-            :return: True if the conditions are matched, False if not
-            :rtype: boolean
+        :return: True if the conditions are matched, False if not
+        :rtype: boolean
         """
-        if (self.isUpdate() and self.isCase() and 'owner' in self.data.get('details', {})):
+        if (
+            self.isUpdate()
+            and self.isCase()
+            and "owner" in self.data.get("details", {})
+        ):
             return True
         else:
             return False
 
     def isCaseTask(self):
         """
-            Check if the webhook describes a case task
+        Check if the webhook describes a case task
 
-            :return: True if it is a case task, False if not
-            :rtype: boolean
+        :return: True if it is a case task, False if not
+        :rtype: boolean
         """
 
-        self.logger.debug('%s.isCase starts', __name__)
+        self.logger.debug("%s.isCase starts", __name__)
 
-        if self.data.get('objectType') == 'case_task':
+        if self.data.get("objectType") == "case_task":
             return True
         else:
             return False
 
     def isCaseTaskAssigned(self):
         """
-            Check if the webhook describes a case task is updated with a user assignment
+        Check if the webhook describes a case task is updated with a user assignment
 
-            :return: True if the conditions are matched, False if not
-            :rtype: boolean
+        :return: True if the conditions are matched, False if not
+        :rtype: boolean
         """
-        if (self.isUpdate() and self.isCaseTask() and 'owner' in self.data.get('details', {})):
+        if (
+            self.isUpdate()
+            and self.isCaseTask()
+            and "owner" in self.data.get("details", {})
+        ):
             return True
         else:
             return False
 
     def isCaseEscalated(self):
         """
-            Check if the webhook describes a case is updated with a custom field Tier
+        Check if the webhook describes a case is updated with a custom field Tier
 
-            :return: True if the conditions are matched, False if not
-            :rtype: boolean
+        :return: True if the conditions are matched, False if not
+        :rtype: boolean
         """
-        details = self.data.get('details', {})
-        if (self.isUpdate() and self.isCase() and 
-            'customFields' in details and
-            'Tier' in details.get('customFields', {})):
+        details = self.data.get("details", {})
+        if (
+            self.isUpdate()
+            and self.isCase()
+            and "customFields" in details
+            and "Tier" in details.get("customFields", {})
+        ):
             return True
         else:
             return False

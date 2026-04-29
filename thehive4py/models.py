@@ -40,24 +40,24 @@ class CustomFieldHelper(object):
 
     def __add_field(self, type, name, value):
         custom_field = dict()
-        custom_field['order'] = len(self.fields)
+        custom_field["order"] = len(self.fields)
         custom_field[type] = value
         self.fields[name] = custom_field
 
     def add_date(self, name, value):
-        self.__add_field('date', name, value)
+        self.__add_field("date", name, value)
         return self
 
     def add_string(self, name, value):
-        self.__add_field('string', name, value)
+        self.__add_field("string", name, value)
         return self
 
     def add_boolean(self, name, value):
-        self.__add_field('boolean', name, value)
+        self.__add_field("boolean", name, value)
         return self
 
     def add_number(self, name, value):
-        self.__add_field('number', name, value)
+        self.__add_field("number", name, value)
         return self
 
     def build(self):
@@ -68,38 +68,38 @@ class Case(JSONSerializable):
 
     def __init__(self, **attributes):
         defaults = {
-            'title': None,
-            'description': None,
-            'tlp': 2,
-            'severity': 2,
-            'flag': False,
-            'tags': [],
-            'startDate': int(time.time()) * 1000,
-            'metrics': {},
-            'customFields': {},
-            'tasks': [],
-            'template': None
+            "title": None,
+            "description": None,
+            "tlp": 2,
+            "severity": 2,
+            "flag": False,
+            "tags": [],
+            "startDate": int(time.time()) * 1000,
+            "metrics": {},
+            "customFields": {},
+            "tasks": [],
+            "template": None,
         }
 
-        if attributes.get('json', False):
-            attributes = attributes['json']
+        if attributes.get("json", False):
+            attributes = attributes["json"]
 
-        is_from_template = attributes.get('template', False)
+        is_from_template = attributes.get("template", False)
         if is_from_template:
-            defaults['template'] = attributes['template']
+            defaults["template"] = attributes["template"]
 
-        self.title = attributes.get('title', None)
-        self.description = attributes.get('description', defaults['description'])
-        self.tlp = attributes.get('tlp', defaults['tlp'])
-        self.severity = attributes.get('severity', defaults['severity'])
-        self.flag = attributes.get('flag', defaults['flag'])
-        self.tags = attributes.get('tags', defaults['tags'])
-        self.startDate = attributes.get('startDate', defaults['startDate'])
-        self.metrics = attributes.get('metrics', defaults['metrics'])
-        self.customFields = attributes.get('customFields', defaults['customFields'])
-        self.template = attributes.get('template', defaults['template'])
+        self.title = attributes.get("title", None)
+        self.description = attributes.get("description", defaults["description"])
+        self.tlp = attributes.get("tlp", defaults["tlp"])
+        self.severity = attributes.get("severity", defaults["severity"])
+        self.flag = attributes.get("flag", defaults["flag"])
+        self.tags = attributes.get("tags", defaults["tags"])
+        self.startDate = attributes.get("startDate", defaults["startDate"])
+        self.metrics = attributes.get("metrics", defaults["metrics"])
+        self.customFields = attributes.get("customFields", defaults["customFields"])
+        self.template = attributes.get("template", defaults["template"])
 
-        tasks = attributes.get('tasks', defaults['tasks'])
+        tasks = attributes.get("tasks", defaults["tasks"])
         self.tasks = []
         for task in tasks:
             if type(task) == CaseTask:
@@ -112,6 +112,7 @@ class CaseHelper:
     """
     Provides helper methods for interacting with instances of the Case class.
     """
+
     def __init__(self, thehive):
         """
         Initialize a CaseHelper instance.
@@ -140,14 +141,14 @@ class CaseHelper:
             case = Case(json=data)
 
             # Add attributes that are not added by the constructor
-            case.id = data.get('id', None)
-            case.owner = data.get('owner', None)
-            case.caseId = data.get('caseId', None)
-            case.status = data.get('status', None)
-            case.createdAt = data.get('createdAt', None)
-            case.createdBy = data.get('createdBy', None)
-            case.updatedAt = data.get('updatedAt', None)
-            case.updatedBy = data.get('updatedBy', None)
+            case.id = data.get("id", None)
+            case.owner = data.get("owner", None)
+            case.caseId = data.get("caseId", None)
+            case.status = data.get("status", None)
+            case.createdAt = data.get("createdAt", None)
+            case.createdBy = data.get("createdBy", None)
+            case.updatedAt = data.get("updatedAt", None)
+            case.updatedBy = data.get("updatedBy", None)
 
             return case
 
@@ -169,16 +170,18 @@ class CaseHelper:
             raise TheHiveException("Authentication failed")
 
         if self.status_ok(response.status_code):
-            return self(response.json()['id'])
+            return self(response.json()["id"])
         else:
-            raise CaseException("Server returned {}: {}".format(response.status_code, response.text))
+            raise CaseException(
+                "Server returned {}: {}".format(response.status_code, response.text)
+            )
 
     def update(self, case_id, **attributes):
         """
-        Update a case.        
+        Update a case.
         :param case_id: The ID of the case to update
         :param attributes: key=value pairs of case attributes to update (field=new_value)
-        
+
         :return: The created instance.
         """
 
@@ -188,9 +191,11 @@ class CaseHelper:
             raise TheHiveException("Authentication failed")
 
         if self.status_ok(response.status_code):
-            return self(response.json()['id'])
+            return self(response.json()["id"])
         else:
-            raise CaseException("Server returned {}: {}".format(response.status_code, response.text))
+            raise CaseException(
+                "Server returned {}: {}".format(response.status_code, response.text)
+            )
 
     @staticmethod
     def status_ok(status_code):
@@ -202,43 +207,43 @@ class CaseHelper:
 class CaseTask(JSONSerializable):
 
     def __init__(self, **attributes):
-        if attributes.get('json', False):
-            attributes = attributes['json']
+        if attributes.get("json", False):
+            attributes = attributes["json"]
 
-        self.title = attributes.get('title', None)
-        self.status = attributes.get('status', 'Waiting')
-        self.flag = attributes.get('flag', False)
-        self.description = attributes.get('description', None)
-        self.owner = attributes.get('owner', None)
-        self.startDate = attributes.get('startDate', None)
-        self.group = attributes.get('group', None)
+        self.title = attributes.get("title", None)
+        self.status = attributes.get("status", "Waiting")
+        self.flag = attributes.get("flag", False)
+        self.description = attributes.get("description", None)
+        self.owner = attributes.get("owner", None)
+        self.startDate = attributes.get("startDate", None)
+        self.group = attributes.get("group", None)
 
 
 class CaseTaskLog(JSONSerializable):
     def __init__(self, **attributes):
-        if attributes.get('json', False):
-            attributes = attributes['json']
+        if attributes.get("json", False):
+            attributes = attributes["json"]
 
-        self.message = attributes.get('message', None)
-        self.file = attributes.get('file', None)
+        self.message = attributes.get("message", None)
+        self.file = attributes.get("file", None)
 
 
 class CaseTemplate(JSONSerializable):
     def __init__(self, **attributes):
-        if attributes.get('json', False):
-            attributes = attributes['json']
+        if attributes.get("json", False):
+            attributes = attributes["json"]
 
-        self.name = attributes.get('name', None)
-        self.titlePrefix = attributes.get('titlePrefix', None)
-        self.description = attributes.get('description', None)
-        self.severity = attributes.get('severity', 2)
-        self.flag = attributes.get('flag', False)
-        self.tlp = attributes.get('tlp', 2)
-        self.tags = attributes.get('tags', [])
-        self.metrics = attributes.get('metrics', {})
-        self.customFields = attributes.get('customFields', {})
+        self.name = attributes.get("name", None)
+        self.titlePrefix = attributes.get("titlePrefix", None)
+        self.description = attributes.get("description", None)
+        self.severity = attributes.get("severity", 2)
+        self.flag = attributes.get("flag", False)
+        self.tlp = attributes.get("tlp", 2)
+        self.tags = attributes.get("tags", [])
+        self.metrics = attributes.get("metrics", {})
+        self.customFields = attributes.get("customFields", {})
 
-        tasks = attributes.get('tasks', [])
+        tasks = attributes.get("tasks", [])
         self.tasks = []
         for task in tasks:
             if type(task) == CaseTask:
@@ -249,42 +254,54 @@ class CaseTemplate(JSONSerializable):
 
 class CaseObservable(JSONSerializable):
     def __init__(self, **attributes):
-        if attributes.get('json', False):
-            attributes = attributes['json']
-        self.dataType = attributes.get('dataType', None)
-        self.message = attributes.get('message', None)
-        self.tlp = attributes.get('tlp', 2)
-        self.tags = attributes.get('tags', [])
-        self.ioc = attributes.get('ioc', False)
-        self.sighted = attributes.get('sighted', False)
+        if attributes.get("json", False):
+            attributes = attributes["json"]
+        self.dataType = attributes.get("dataType", None)
+        self.message = attributes.get("message", None)
+        self.tlp = attributes.get("tlp", 2)
+        self.tags = attributes.get("tags", [])
+        self.ioc = attributes.get("ioc", False)
+        self.sighted = attributes.get("sighted", False)
 
-        data = attributes.get('data', [])
-        if self.dataType == 'file':
-            self.data = [{'attachment': (os.path.basename(data[0]), open(data[0], 'rb'), magic.Magic(mime=True).from_file(data[0]))}]
+        data = attributes.get("data", [])
+        if self.dataType == "file":
+            self.data = [
+                {
+                    "attachment": (
+                        os.path.basename(data[0]),
+                        open(data[0], "rb"),
+                        magic.Magic(mime=True).from_file(data[0]),
+                    )
+                }
+            ]
         else:
             self.data = data
 
 
 class Alert(JSONSerializable):
     def __init__(self, **attributes):
-        if attributes.get('json', False):
-            attributes = attributes['json']
+        if attributes.get("json", False):
+            attributes = attributes["json"]
 
-        self.tlp = attributes.get('tlp', 2)
-        self.status = attributes.get('status', "New")
-        self.severity = attributes.get('severity', 2)
-        self.date = attributes.get('date', int(time.time()) * 1000)
-        self.tags = attributes.get('tags', [])
-        self.caseTemplate = attributes.get('caseTemplate', None)
+        self.tlp = attributes.get("tlp", 2)
+        self.status = attributes.get("status", "New")
+        self.severity = attributes.get("severity", 2)
+        self.date = attributes.get("date", int(time.time()) * 1000)
+        self.tags = attributes.get("tags", [])
+        self.caseTemplate = attributes.get("caseTemplate", None)
 
-        self.title = self.attr(attributes, 'title', None, 'Missing alert title')
-        self.type = self.attr(attributes, 'type', None, 'Missing alert type')
-        self.source = self.attr(attributes, 'source', None, 'Missing alert source')
-        self.sourceRef = self.attr(attributes, 'sourceRef', None, 'Missing alert reference')
-        self.description = self.attr(attributes, 'description', None, 'Missing alert description')
-        self.customFields = self.attr(attributes, 'customFields', {})
+        self.title = self.attr(attributes, "title", None, "Missing alert title")
+        self.type = self.attr(attributes, "type", None, "Missing alert type")
+        self.source = self.attr(attributes, "source", None, "Missing alert source")
+        self.sourceRef = self.attr(
+            attributes, "sourceRef", None, "Missing alert reference"
+        )
+        self.description = self.attr(
+            attributes, "description", None, "Missing alert description"
+        )
+        self.customFields = self.attr(attributes, "customFields", {})
 
-        artifacts = attributes.get('artifacts', [])
+        artifacts = attributes.get("artifacts", [])
         self.artifacts = []
         for artifact in artifacts:
             if type(artifact) == AlertArtifact:
@@ -295,18 +312,18 @@ class Alert(JSONSerializable):
 
 class AlertArtifact(JSONSerializable):
     def __init__(self, **attributes):
-        if attributes.get('json', False):
-            attributes = attributes['json']
+        if attributes.get("json", False):
+            attributes = attributes["json"]
 
-        self.dataType = attributes.get('dataType', None)
-        self.message = attributes.get('message', None)
-        self.tlp = attributes.get('tlp', 2)
-        self.tags = attributes.get('tags', [])
+        self.dataType = attributes.get("dataType", None)
+        self.message = attributes.get("message", None)
+        self.tlp = attributes.get("tlp", 2)
+        self.tags = attributes.get("tags", [])
 
-        if self.dataType == 'file':
-            self.data = self._prepare_file_data(attributes.get('data', None))
+        if self.dataType == "file":
+            self.data = self._prepare_file_data(attributes.get("data", None))
         else:
-            self.data = attributes.get('data', None)
+            self.data = attributes.get("data", None)
 
     def _prepare_file_data(self, file_path):
         with open(file_path, "rb") as file_artifact:

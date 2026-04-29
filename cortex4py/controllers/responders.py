@@ -1,16 +1,10 @@
-import os
-
-import magic
-import json
-from typing import List
-
-from cortex4py.query import *
 from .abstract import AbstractController
-from ..models import Analyzer, Job, AnalyzerDefinition
+from ..models import Job
+
 
 class RespondersController(AbstractController):
     def __init__(self, api):
-        AbstractController.__init__(self, 'analyzer', api)
+        AbstractController.__init__(self, "analyzer", api)
 
     # def find_all(self, query, **kwargs) -> List[Analyzer]:
     #     return self._wrap(self._find_all(query, **kwargs), Analyzer)
@@ -46,23 +40,25 @@ class RespondersController(AbstractController):
     #     return self._api.do_delete('analyzer/{}'.format(analyzer_id))
 
     def run_by_id(self, responder_id, data, **kwargs) -> Job:
-        tlp = data.get('tlp', 2)
-        data_type = data.get('dataType', None)
+        tlp = data.get("tlp", 2)
+        data_type = data.get("dataType", None)
 
-        post = {
-            'dataType': data_type,
-            'tlp': tlp
-        }
+        post = {"dataType": data_type, "tlp": tlp}
 
         params = {}
-        if 'force' in kwargs:
-            params['force'] = kwargs.get('force', 1)
+        if "force" in kwargs:
+            params["force"] = kwargs.get("force", 1)
 
         # add additional details
-        for key in ['message', 'parameters']:
+        for key in ["message", "parameters"]:
             if key in data:
                 post[key] = data.get(key, None)
-        
-        post['data'] = data.get('data')
 
-        return self._wrap(self._api.do_post('responder/{}/run'.format(responder_id), post, params).json(), Job)
+        post["data"] = data.get("data")
+
+        return self._wrap(
+            self._api.do_post(
+                "responder/{}/run".format(responder_id), post, params
+            ).json(),
+            Job,
+        )

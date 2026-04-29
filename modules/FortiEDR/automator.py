@@ -1,9 +1,10 @@
 import logging
 from modules.FortiEDR.connector import FortiEDRConnector
 
+
 class Automator:
     def __init__(self):
-        self.logger = logging.getLogger('synapse.modules.FortiEDR.automator')
+        self.logger = logging.getLogger("synapse.modules.FortiEDR.automator")
         self.connector = FortiEDRConnector()
 
     def isolateDevice(self, action_config, webhook):
@@ -11,7 +12,7 @@ class Automator:
         Isolate a device in FortiEDR.
         Expected webhook data should contain the collector ID.
         """
-        collector_id = webhook.get('collector_id')
+        collector_id = webhook.get("collector_id")
         if not collector_id:
             self.logger.error("No collector_id found in webhook for isolateDevice")
             return False, "No collector_id found"
@@ -24,7 +25,7 @@ class Automator:
         """
         Unisolate a device in FortiEDR.
         """
-        collector_id = webhook.get('collector_id')
+        collector_id = webhook.get("collector_id")
         if not collector_id:
             self.logger.error("No collector_id found in webhook for unisolateDevice")
             return False, "No collector_id found"
@@ -37,9 +38,9 @@ class Automator:
         """
         Remediate a device in FortiEDR (kill process, delete file, etc.)
         """
-        collector_id = webhook.get('collector_id')
-        process_id = webhook.get('process_id', 0)
-        
+        collector_id = webhook.get("collector_id")
+        process_id = webhook.get("process_id", 0)
+
         if not collector_id:
             self.logger.error("No collector_id found in webhook for remediateDevice")
             return False, "No collector_id found"

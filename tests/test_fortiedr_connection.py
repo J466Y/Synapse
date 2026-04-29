@@ -1,7 +1,7 @@
 import sys
-import os
 import logging
-from datetime import datetime
+from core.functions import getConf
+from modules.FortiEDR.connector import FortiEDRConnector
 
 # Add Synapse and fortiedr to sys.path
 synapse_dir = r"localsynapsefolder"
@@ -9,23 +9,22 @@ fortiedr_dir = r"localfortiedrfolder"
 sys.path.append(synapse_dir)
 sys.path.append(fortiedr_dir)
 
-from core.functions import getConf
-from modules.FortiEDR.connector import FortiEDRConnector
 
 # Configure logging to see what's happening
 logging.basicConfig(level=logging.DEBUG)
+
 
 def test_connection():
     try:
         print("[*] Loading configuration...")
         cfg = getConf()
-        
+
         print("[*] Initializing FortiEDR Connector...")
         connector = FortiEDRConnector(cfg)
-        
+
         print("[*] Testing authentication...")
         auth_result = connector.authenticate()
-        if auth_result['status']:
+        if auth_result["status"]:
             print("[+] Authentication SUCCESSFUL")
         else:
             print(f"[-] Authentication FAILED: {auth_result['data']}")
@@ -33,20 +32,22 @@ def test_connection():
 
         print("[*] Testing list_events (last 60 minutes)...")
         events_result = connector.list_events(60)
-        if events_result['status']:
-            events = events_result['data']
+        if events_result["status"]:
+            events = events_result["data"]
             print(f"[+] Successfully fetched {len(events)} events")
             if events:
                 first_event = events[0]
                 print(f"[+] First event keys: {list(first_event.keys())}")
-                print(f"[+] First event ID: {first_event.get('id') or first_event.get('eventId')}")
+                print(
+                    f"[+] First event ID: {first_event.get('id') or first_event.get('eventId')}"
+                )
         else:
             print(f"[-] Failed to fetch events: {events_result['data']}")
 
         print("[*] Testing list_collectors...")
         collectors_result = connector.list_collectors()
-        if collectors_result['status']:
-            collectors = collectors_result['data']
+        if collectors_result["status"]:
+            collectors = collectors_result["data"]
             print(f"[+] Successfully fetched {len(collectors)} collectors")
         else:
             print(f"[-] Failed to fetch collectors: {collectors_result['data']}")
@@ -54,7 +55,9 @@ def test_connection():
     except Exception as e:
         print(f"[!] Unexpected error during test: {e}")
         import traceback
+
         traceback.print_exc()
+
 
 if __name__ == "__main__":
     test_connection()

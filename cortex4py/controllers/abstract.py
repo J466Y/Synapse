@@ -12,21 +12,19 @@ class AbstractController(object):
             return data
 
     def _find_all(self, query, **kwargs):
-        url = '{}/_search'.format(self._endpoint)
-        params = dict((k, kwargs.get(k, None)) for k in ('sort', 'range'))
+        url = "{}/_search".format(self._endpoint)
+        params = dict((k, kwargs.get(k, None)) for k in ("sort", "range"))
 
-        return self._api.do_post(url, {'query': query or {}}, params).json()
+        return self._api.do_post(url, {"query": query or {}}, params).json()
 
     def _find_one_by(self, query, **kwargs):
-        url = '{}/_search'.format(self._endpoint)
+        url = "{}/_search".format(self._endpoint)
 
-        params = {
-            'range': '0-1'
-        }
-        if 'sort' in kwargs:
-            params['sort'] = kwargs['sort']
+        params = {"range": "0-1"}
+        if "sort" in kwargs:
+            params["sort"] = kwargs["sort"]
 
-        collection = self._api.do_post(url, {'query': query or {}}, params).json()
+        collection = self._api.do_post(url, {"query": query or {}}, params).json()
 
         if len(collection) > 0:
             return collection[0]
@@ -34,24 +32,19 @@ class AbstractController(object):
             return None
 
     def _count(self, query):
-        url = '{}/_stats'.format(self._endpoint)
+        url = "{}/_stats".format(self._endpoint)
 
-        payload = {
-            'query': query or {},
-            'stats': [{
-                '_agg': 'count'
-            }]
-        }
+        payload = {"query": query or {}, "stats": [{"_agg": "count"}]}
 
         response = self._api.do_post(url, payload, {}).json()
 
         if response is not None:
-            return response.get('count', None)
+            return response.get("count", None)
         else:
             return None
 
     def _get_by_id(self, obj_id):
-        url = '{}/{}'.format(self._endpoint, obj_id)
+        url = "{}/{}".format(self._endpoint, obj_id)
 
         return self._api.do_get(url).json()
 

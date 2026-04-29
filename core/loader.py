@@ -2,26 +2,34 @@ import logging
 import os
 import importlib
 
+
 def moduleLoader(submodule, enabled_modules=[]):
-    #import logger
+    # import logger
     logger = logging.getLogger(__name__)
 
-    #Define folder structure and empty vars
+    # Define folder structure and empty vars
     app_dir = os.path.dirname(os.path.abspath(__file__))
     modules_dir = app_dir + "/../modules"
     loaded_modules = {}
 
-    #Read all modules from modules folder
-    modules = [ name for name in os.listdir(modules_dir) if os.path.isdir(os.path.join(modules_dir, name)) if os.path.isfile(os.path.join(modules_dir, name, submodule + ".py")) ]
+    # Read all modules from modules folder
+    modules = [
+        name
+        for name in os.listdir(modules_dir)
+        if os.path.isdir(os.path.join(modules_dir, name))
+        if os.path.isfile(os.path.join(modules_dir, name, submodule + ".py"))
+    ]
 
     logger.info("Loading modules for {}".format(submodule))
-    #Loop through modules to create a module dictionary
+    # Loop through modules to create a module dictionary
     for module in modules:
         if len(enabled_modules) > 0:
-            if not module in enabled_modules:
+            if module not in enabled_modules:
                 continue
-        loaded_modules[module] = importlib.import_module("modules.{}.{}".format(module, submodule))
-        logger.info("Loaded {} module {}".format(submodule,module))
+        loaded_modules[module] = importlib.import_module(
+            "modules.{}.{}".format(module, submodule)
+        )
+        logger.info("Loaded {} module {}".format(submodule, module))
         # for item in dir(loaded_modules[module]):
         #     if not "__" in item:
         #         print(item)

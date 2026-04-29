@@ -4,18 +4,19 @@ from email.message import EmailMessage
 import ssl
 import re
 
+
 class SMTPConnector:
-    'AzureSentinelConnector connector'
+    "AzureSentinelConnector connector"
 
     def __init__(self, cfg):
         """
-            Class constuctor
+        Class constuctor
 
-            :param cfg: synapse configuration
-            :type cfg: ConfigParser
+        :param cfg: synapse configuration
+        :type cfg: ConfigParser
 
-            :return: Object AzureSentinelConnector
-            :rtype: AzureSentinelConnector
+        :return: Object AzureSentinelConnector
+        :rtype: AzureSentinelConnector
         """
         self.logger = logging.getLogger(__name__)
         self.cfg = cfg
@@ -64,7 +65,9 @@ class SMTPConnector:
                     try:
                         server.send_message(msg, self.mail_from, [mail_to])
                     except Exception as e:
-                        self.logger.error("Received an error while trying to send an email: {e}")
+                        self.logger.error(
+                            "Received an error while trying to send an email: {e}"
+                        )
                         return
 
         else:
@@ -72,10 +75,14 @@ class SMTPConnector:
                 try:
                     server.send_message(msg, self.mail_from, [mail_to])
                 except smtplib.SMTPServerDisconnected:
-                    self.logger.error("The server is not connecting properly. Please check your configuration")
+                    self.logger.error(
+                        "The server is not connecting properly. Please check your configuration"
+                    )
                     return
                 except Exception as e:
-                    self.logger.error("Received an error while trying to send an email: {e}")
+                    self.logger.error(
+                        "Received an error while trying to send an email: {e}"
+                    )
                     return
 
         self.logger.info(f"Succesfully sent email '{title}' to '{mail_to}'")
@@ -83,10 +90,10 @@ class SMTPConnector:
     def escapeUrls(self, url_string):
         # with valid conditions for urls in string
         regex = r"(?i)\b((?:https?://|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:'\".,<>?«»“”‘’]))"
-        splitted_string = re.split(regex,url_string)
+        splitted_string = re.split(regex, url_string)
         print(splitted_string)
         escaped_string = ""
-        for count,partial_string in enumerate(splitted_string):
+        for count, partial_string in enumerate(splitted_string):
             if count == 0:
                 escaped_string += partial_string
             if count == 1:

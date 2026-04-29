@@ -6,33 +6,34 @@ from datetime import datetime, timezone
 from dateutil import tz
 import urllib
 
+
 class LexsiConnector:
-    'LexsiConnector connector'
+    "LexsiConnector connector"
 
     def __init__(self, cfg):
         """
-            Class constuctor
+        Class constuctor
 
-            :param cfg: synapse configuration
-            :type cfg: ConfigParser
+        :param cfg: synapse configuration
+        :type cfg: ConfigParser
 
-            :return: Object LexsiConnector
-            :rtype: LexsiConnector
+        :return: Object LexsiConnector
+        :rtype: LexsiConnector
         """
 
         self.logger = logging.getLogger(__name__)
         self.cfg = cfg
-        self.url = self.cfg.get('Lexsi', 'url')
-        self.user = self.cfg.get('Lexsi', 'user')
-        self.passw = self.cfg.get('Lexsi', 'password')
-        self.http_proxy = self.cfg.get('Lexsi', 'http_proxy')
-        self.https_proxy = self.cfg.get('Lexsi', 'http_proxy')
+        self.url = self.cfg.get("Lexsi", "url")
+        self.user = self.cfg.get("Lexsi", "user")
+        self.passw = self.cfg.get("Lexsi", "password")
+        self.http_proxy = self.cfg.get("Lexsi", "http_proxy")
+        self.https_proxy = self.cfg.get("Lexsi", "http_proxy")
 
         self.proxies = {
-            'http': self.http_proxy,
-            'https': self.https_proxy,
+            "http": self.http_proxy,
+            "https": self.https_proxy,
         }
-        self.cert = self.cfg.getboolean('Lexsi', 'verify_cert', fallback=True)
+        self.cert = self.cfg.getboolean("Lexsi", "verify_cert", fallback=True)
 
         self.__cookiejar = self.__authenticate()
 
@@ -41,20 +42,19 @@ class LexsiConnector:
 
         try:
             headers = {
-                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                'Accept': '*/*'
+                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                "Accept": "*/*",
             }
 
-            data = {
-                'userName': self.user,
-                'password': self.passw
-            }
+            data = {"userName": self.user, "password": self.passw}
 
-            r = requests.post(self.url + "/api/auth/auth/login/",
-                              headers=headers,
-                              data=data,
-                              proxies=self.proxies,
-                              verify=self.cert)
+            r = requests.post(
+                self.url + "/api/auth/auth/login/",
+                headers=headers,
+                data=data,
+                proxies=self.proxies,
+                verify=self.cert,
+            )
             r.raise_for_status()
             self.logger.debug("Return value {}".format(r.text))
             if "failure" in r.json().keys():
@@ -69,27 +69,30 @@ class LexsiConnector:
         self.logger.info("Started receiving open alerts from Lexsi")
 
         try:
-            data = {
-                'filter': self.cfg.get('Lexsi', 'filter'),
-                'limit': maxResults
-            }
+            data = {"filter": self.cfg.get("Lexsi", "filter"), "limit": maxResults}
 
-            r = requests.get(self.url + "/api/cyb/alerts/listcybercrimefilter/?" + urllib.parse.urlencode(data),
-                             cookies=self.__cookiejar,
-                             proxies=self.proxies,
-                             verify=False,
-                             timeout=60)
+            r = requests.get(
+                self.url
+                + "/api/cyb/alerts/listcybercrimefilter/?"
+                + urllib.parse.urlencode(data),
+                cookies=self.__cookiejar,
+                proxies=self.proxies,
+                verify=False,
+                timeout=60,
+            )
             r.raise_for_status()
         except requests.RequestException as e:
             self.logger.error("Failed alert retrieval with error {}".format(e))
             raise
 
-        self.logger.info("Performed alert retrieval with status code {}".format(r.status_code))
+        self.logger.info(
+            "Performed alert retrieval with status code {}".format(r.status_code)
+        )
         return r.json()
 
     def createMappingOnFieldName(self, fieldName, issueList):
         fieldId = self.getCustomFieldId(fieldName)
         mapped_values = dict()
-        for issue in issueList['issues']:
-            mapped_values[issue['key']] = issue['fields'][fieldId]
+        for issue in issueList["issues"]:
+            mapped_values[issue["key"]] = issue["fields"][fieldId]
         return mapped_values

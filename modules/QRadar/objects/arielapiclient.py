@@ -1,5 +1,4 @@
 from .RestApiClient import RestApiClient
-import urllib.parse
 
 
 # Inherits methods from RestApiClient
@@ -12,49 +11,58 @@ class APIClient(RestApiClient):
 
     # This class will encode any data or query parameters which will then be
     # sent to the call_api() method of its inherited class.
-    def __init__(self, server_ip, auth_token, certificate_file, certificate_verification, version, **kwargs):
+    def __init__(
+        self,
+        server_ip,
+        auth_token,
+        certificate_file,
+        certificate_verification,
+        version,
+        **kwargs
+    ):
 
         # This version of the ariel APIClient is designed to function with
         # version 6.0 of the ariel API.
-        self.endpoint_start = 'ariel/'
-        super(APIClient, self).__init__(server_ip, auth_token,
-                                        certificate_file, certificate_verification, version)
+        self.endpoint_start = "ariel/"
+        super(APIClient, self).__init__(
+            server_ip, auth_token, certificate_file, certificate_verification, version
+        )
 
-        #Create proxy config when proxy is provided
-        self.http_proxy = kwargs.get('http_proxy', None)
-        self.https_proxy = kwargs.get('https_proxy', None)
+        # Create proxy config when proxy is provided
+        self.http_proxy = kwargs.get("http_proxy", None)
+        self.https_proxy = kwargs.get("https_proxy", None)
 
     def get_databases(self):
 
-        endpoint = self.endpoint_start + 'databases'
+        endpoint = self.endpoint_start + "databases"
         # Sends a GET request to
         # https://<server_ip>/rest/api/ariel/databases
-        return self.call_api(endpoint, 'GET', self.headers)
+        return self.call_api(endpoint, "GET", self.headers)
 
     def get_database(self, database_name):
 
-        endpoint = self.endpoint_start + 'databases' + '/' + database_name
+        endpoint = self.endpoint_start + "databases" + "/" + database_name
         # Sends a GET request to
         # https://<server_ip>/rest/api/ariel/databases/<database_name>
-        return self.call_api(endpoint, 'GET', self.headers)
+        return self.call_api(endpoint, "GET", self.headers)
 
     def get_searches(self):
 
         endpoint = self.endpoint_start + "searches"
         # sends a GET request to https://<server_ip>/rest/api/ariel/searches
-        return self.call_api(endpoint, 'GET', self.headers)
+        return self.call_api(endpoint, "GET", self.headers)
 
     def create_search(self, query_expression):
 
         endpoint = self.endpoint_start + "searches"
         # sends a POST request to https://<server_ip>/rest/api/ariel/searches
 
-        params = {'query_expression': query_expression}
+        params = {"query_expression": query_expression}
 
         # data = urllib.parse.urlencode(data)
         # data = data.encode('utf-8')
 
-        return self.call_api(endpoint, 'POST', self.headers, params=params)
+        return self.call_api(endpoint, "POST", self.headers, params=params)
 
     def get_search(self, search_id):
 
@@ -62,24 +70,24 @@ class APIClient(RestApiClient):
         # https://<server_ip>/rest/api/ariel/searches/<search_id>
         endpoint = self.endpoint_start + "searches/" + search_id
 
-        return self.call_api(endpoint, 'GET', self.headers)
+        return self.call_api(endpoint, "GET", self.headers)
 
-    def get_search_results(self, search_id,
-                           response_type, range_start=None, range_end=None):
+    def get_search_results(
+        self, search_id, response_type, range_start=None, range_end=None
+    ):
 
         headers = self.headers.copy()
-        headers[b'Accept'] = response_type
+        headers[b"Accept"] = response_type
 
-        if ((range_start is not None) and (range_end is not None)):
-            headers[b'Range'] = ('items=' +
-                                 str(range_start) + '-' + str(range_end))
+        if (range_start is not None) and (range_end is not None):
+            headers[b"Range"] = "items=" + str(range_start) + "-" + str(range_end)
 
         # sends a GET request to
         # https://<server_ip>/rest/api/ariel/searches/<search_id>
-        endpoint = self.endpoint_start + "searches/" + search_id + '/results'
+        endpoint = self.endpoint_start + "searches/" + search_id + "/results"
 
         # response object body should contain information pertaining to search.
-        return self.call_api(endpoint, 'GET', headers)
+        return self.call_api(endpoint, "GET", headers)
 
     def update_search(self, search_id, save_results=None, status=None):
 
@@ -90,20 +98,20 @@ class APIClient(RestApiClient):
 
         params = {}
         if save_results:
-            params['save_results'] = save_results
+            params["save_results"] = save_results
         if status:
-            params['status'] = status
+            params["status"] = status
 
         # data = urllib.parse.urlencode(data)
         # data = data.encode('utf-8')
 
-        return self.call_api(endpoint, 'POST', self.headers, params=params)
+        return self.call_api(endpoint, "POST", self.headers, params=params)
 
     def delete_search(self, search_id):
 
         # sends a DELETE request to
         # https://<server_ip>/rest/api/ariel/searches/<search_id>
         # deletes search created earlier.
-        endpoint = self.endpoint_start + "searches" + '/' + search_id
+        endpoint = self.endpoint_start + "searches" + "/" + search_id
 
-        return self.call_api(endpoint, 'DELETE', self.headers)
+        return self.call_api(endpoint, "DELETE", self.headers)

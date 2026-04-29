@@ -4,6 +4,7 @@
 import logging
 from darktrace.client import DarktraceClient
 
+
 class DarktraceConnector:
     """Darktrace connector for Synapse"""
 
@@ -16,19 +17,23 @@ class DarktraceConnector:
         self.logger = logging.getLogger(__name__)
         self.cfg = cfg
         self.client = None
-        
+
         try:
-            self.host = self.cfg.get('Darktrace', 'host')
-            self.public_token = self.cfg.get('Darktrace', 'public_token')
-            self.private_token = self.cfg.get('Darktrace', 'private_token')
+            self.host = self.cfg.get("Darktrace", "host")
+            self.public_token = self.cfg.get("Darktrace", "public_token")
+            self.private_token = self.cfg.get("Darktrace", "private_token")
             # The SDK handles cert verification natively using 'verify' parameter, defaulting to requests' handling.
-            self.cert_verification = self.cfg.getboolean('Darktrace', 'cert_verification', fallback=True)
-            
+            self.cert_verification = self.cfg.getboolean(
+                "Darktrace", "cert_verification", fallback=True
+            )
+
             # Authenticate / Initialize client
             self.authenticate()
-            
+
         except Exception as e:
-            self.logger.error('Failed to initialize Darktrace connector: %s', e, exc_info=True)
+            self.logger.error(
+                "Failed to initialize Darktrace connector: %s", e, exc_info=True
+            )
             raise
 
     def health_check(self):
@@ -37,6 +42,7 @@ class DarktraceConnector:
         Returns True if reachable, False otherwise.
         """
         import socket
+
         self.logger.debug("Performing health check on target server %s", self.host)
         try:
             with socket.create_connection((self.host, 443), timeout=3):
@@ -49,19 +55,21 @@ class DarktraceConnector:
         """
         Initialize the DarktraceClient
         """
-        self.logger.debug('Initializing DarktraceClient at %s', self.host)
+        self.logger.debug("Initializing DarktraceClient at %s", self.host)
         try:
             self.client = DarktraceClient(
                 host=self.host,
                 public_token=self.public_token,
                 private_token=self.private_token,
-                verify_ssl=self.cert_verification
+                verify_ssl=self.cert_verification,
             )
-            self.logger.info('Darktrace client initialized successfully')
-            return {'status': True, 'data': 'Client initialized'}
+            self.logger.info("Darktrace client initialized successfully")
+            return {"status": True, "data": "Client initialized"}
         except Exception as e:
-            self.logger.error('Unexpected error during Darktrace initialization: %s', e, exc_info=True)
-            return {'status': False, 'data': str(e)}
+            self.logger.error(
+                "Unexpected error during Darktrace initialization: %s", e, exc_info=True
+            )
+            return {"status": False, "data": str(e)}
 
     def get_breaches(self, starttime_ms, endtime_ms):
         """
@@ -70,9 +78,11 @@ class DarktraceConnector:
         :param endtime_ms: End time in epoch ms
         :return: list of breach dicts or empty list
         """
-        self.logger.debug('Fetching Darktrace breaches from %s to %s', starttime_ms, endtime_ms)
+        self.logger.debug(
+            "Fetching Darktrace breaches from %s to %s", starttime_ms, endtime_ms
+        )
         if not self.client:
-            self.logger.error('Cannot get Darktrace breaches: client not initialized')
+            self.logger.error("Cannot get Darktrace breaches: client not initialized")
             return []
         try:
             # We want readable fields and device information at the top
@@ -80,11 +90,11 @@ class DarktraceConnector:
                 starttime=starttime_ms,
                 endtime=endtime_ms,
                 expandenums=True,
-                deviceattop=True
+                deviceattop=True,
             )
             return breaches_data if breaches_data else []
         except Exception as e:
-            self.logger.error('Failed to get Darktrace breaches: %s', e, exc_info=True)
+            self.logger.error("Failed to get Darktrace breaches: %s", e, exc_info=True)
             return []
 
     def acknowledge_breach(self, pbid):
@@ -92,16 +102,20 @@ class DarktraceConnector:
         Acknowledge a specific model breach alert
         :param pbid: specific breach ID
         """
-        self.logger.debug('Acknowledging Darktrace breach: %s', pbid)
+        self.logger.debug("Acknowledging Darktrace breach: %s", pbid)
         if not self.client:
-            self.logger.error('Cannot acknowledge Darktrace breach: client not initialized')
-            return {'status': False, 'data': 'Client not initialized'}
+            self.logger.error(
+                "Cannot acknowledge Darktrace breach: client not initialized"
+            )
+            return {"status": False, "data": "Client not initialized"}
         try:
             result = self.client.breaches.acknowledge(pbid=pbid)
-            return {'status': True, 'data': result}
+            return {"status": True, "data": result}
         except Exception as e:
-            self.logger.error('Failed to acknowledge Darktrace breach %s: %s', pbid, e, exc_info=True)
-            return {'status': False, 'data': str(e)}
+            self.logger.error(
+                "Failed to acknowledge Darktrace breach %s: %s", pbid, e, exc_info=True
+            )
+            return {"status": False, "data": str(e)}
 
     def add_comment(self, pbid, comment):
         """
@@ -109,13 +123,18 @@ class DarktraceConnector:
         :param pbid: specific breach ID
         :param comment: string comment to add
         """
-        self.logger.debug('Adding comment to Darktrace breach: %s', pbid)
+        self.logger.debug("Adding comment to Darktrace breach: %s", pbid)
         if not self.client:
-            self.logger.error('Cannot add comment: client not initialized')
-            return {'status': False, 'data': 'Client not initialized'}
+            self.logger.error("Cannot add comment: client not initialized")
+            return {"status": False, "data": "Client not initialized"}
         try:
             result = self.client.breaches.add_comment(pbid=pbid, message=comment)
-            return {'status': True, 'data': result}
+            return {"status": True, "data": result}
         except Exception as e:
-            self.logger.error('Failed to add comment to Darktrace breach %s: %s', pbid, e, exc_info=True)
-            return {'status': False, 'data': str(e)}
+            self.logger.error(
+                "Failed to add comment to Darktrace breach %s: %s",
+                pbid,
+                e,
+                exc_info=True,
+            )
+            return {"status": False, "data": str(e)}

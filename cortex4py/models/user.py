@@ -5,15 +5,15 @@ class User(Model):
 
     def __init__(self, data):
         defaults = {
-            'id': None,
-            'login': None,
-            'name': None,
-            'organization': None,
-            'status': 'Ok',
-            'roles': ['read']
+            "id": None,
+            "login": None,
+            "name": None,
+            "organization": None,
+            "status": "Ok",
+            "roles": ["read"],
         }
 
         if data is None:
             data = dict(defaults)
 
-        self.__dict__ = {k: v for k, v in data.items() if not k.startswith('_')}
+        self.__dict__ = {k: v for k, v in data.items() if not k.startswith("_")}

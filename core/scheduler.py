@@ -8,14 +8,16 @@ import logging
 import threading
 import heapq
 import pickle
-from shutil import copy, move, SameFileError
+from shutil import move, SameFileError
 
 logging.basicConfig(
-    format='%(asctime)s %(levelname)s: %(message)s',
+    format="%(asctime)s %(levelname)s: %(message)s",
     level=logging.DEBUG,
-    datefmt='%Y-%m-%d %H:%M:%S')
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
-class Event(namedtuple('Event', 'time, priority, action, argument, kwargs, attempts')):
+
+class Event(namedtuple("Event", "time, priority, action, argument, kwargs, attempts")):
     __slots__ = []
 
     def __eq__(s, o):
@@ -33,14 +35,26 @@ class Event(namedtuple('Event', 'time, priority, action, argument, kwargs, attem
     def __ge__(s, o):
         return (s.time, s.priority) >= (o.time, o.priority)
 
+
 _sentinel = object()
 
+
 class EventScheduler(sched.scheduler):
-    def __init__(self, queue_path, cfg, automation_config, modules, timefunc=_time, delayfunc=time.sleep, max_retries=3, retry_time=60):
+    def __init__(
+        self,
+        queue_path,
+        cfg,
+        automation_config,
+        modules,
+        timefunc=_time,
+        delayfunc=time.sleep,
+        max_retries=3,
+        retry_time=60,
+    ):
         """Initialize a new instance, passing the time and delay
         functions"""
         self.logger = logging.getLogger(__name__)
-        self.logger.info('Initiating Scheduler')
+        self.logger.info("Initiating Scheduler")
         self._lock = threading.RLock()
         self._running = False
         self._paused = False
@@ -59,7 +73,7 @@ class EventScheduler(sched.scheduler):
         self.modules = modules
         self.init_files()
         if not self.is_running():
-            self.logger.info('Starting scheduler')
+            self.logger.info("Starting scheduler")
             self.scheduler_thread = threading.Thread(target=self.run)
             self.scheduler_thread.daemon = True
             self.scheduler_thread.start()
@@ -70,13 +84,17 @@ class EventScheduler(sched.scheduler):
         This function also defines the names of the files.
         """
         queue_path = os.path.basename(self.filepaths["q_path"])
-        filename, extension = queue_path.split('.')
+        filename, extension = queue_path.split(".")
 
         self.filepaths["bkp_path"] = os.path.join(self.cwd, f"backups/{filename}.bkp")
         self.filepaths["tmp_path"] = os.path.join(self.cwd, f"backups/{filename}.tmp")
         self.filepaths["retry_path"] = os.path.join(self.cwd, f"{filename}_retry.pkl")
-        self.filepaths["retry_bkp_path"] = os.path.join(self.cwd, f"backups/{filename}_retry.bkp")
-        self.filepaths["retry_tmp_path"] = os.path.join(self.cwd, f"backups/{filename}_retry.tmp")
+        self.filepaths["retry_bkp_path"] = os.path.join(
+            self.cwd, f"backups/{filename}_retry.bkp"
+        )
+        self.filepaths["retry_tmp_path"] = os.path.join(
+            self.cwd, f"backups/{filename}_retry.tmp"
+        )
 
         self.init_file(self.filepaths["q_path"])
         self.init_file(self.filepaths["retry_path"])
@@ -85,13 +103,13 @@ class EventScheduler(sched.scheduler):
             os.mkdir(backup_dir)
 
     def init_file(self, path):
-        """ Tries to create a file, if the file already exists, it is restored to be compatible
+        """Tries to create a file, if the file already exists, it is restored to be compatible
         with this instance of the scheduler.
 
         : param str path: a string describing the (full) path to the queue file.
         """
         try:
-            with open(path, "x") as file:
+            with open(path, "x"):
                 pass
         except FileExistsError:
             if "pkl" in path:
@@ -99,7 +117,7 @@ class EventScheduler(sched.scheduler):
         return path
 
     def restore_queue(self, path):
-        """ This function reads and recalculates the timestamps for all events in the queue if necessary.
+        """This function reads and recalculates the timestamps for all events in the queue if necessary.
         It checks the timestamp that is added to the first line of every queue file,
         and compares it to the current monotonic time.
         If the current time value is lower than the retrieved timestamp, all timestamps are refactored
@@ -116,10 +134,10 @@ class EventScheduler(sched.scheduler):
         """
         heap = []
         start_time = None
-        with open(path, 'rb') as file:
+        with open(path, "rb") as file:
             while True:
                 try:
-                    item = (pickle.load(file))
+                    item = pickle.load(file)
                     if isinstance(item, Event):
                         self.logger.debug("Restoring event: {}".format(item))
                         heap.append(item)
@@ -133,15 +151,21 @@ class EventScheduler(sched.scheduler):
         elif "queue.pkl" in path:
             self._queue = heap
         if start_time and current_time < start_time:
-            self.logger.info("Detected possible system restart, recalculating execution times")
+            self.logger.info(
+                "Detected possible system restart, recalculating execution times"
+            )
             updated_heap = []
             for event in heap:
                 time, priority, action, argument, kwargs, attempts = event
                 time_until_execute = time - start_time
                 new_event_time = current_time + time_until_execute
-                updated_heap.append(Event(time, priority, action, argument, kwargs, attempts))
+                updated_heap.append(
+                    Event(new_event_time, priority, action, argument, kwargs, attempts)
+                )
             if "retry.pkl" in path:
-                self.filepaths["retry_path"] = path  # Create dict entry as this might not exist yet.
+                self.filepaths["retry_path"] = (
+                    path  # Create dict entry as this might not exist yet.
+                )
                 self.write_heap(updated_heap, True, backup=False)
                 self._retry = updated_heap
             elif "queue.pkl" in path:
@@ -150,32 +174,32 @@ class EventScheduler(sched.scheduler):
         self.logger.info("Finished restoring queue")
 
     def remove_files(self):
-        """ Removes all files that are created by the scheduler. This should not be used in normal operations.
-        """
+        """Removes all files that are created by the scheduler. This should not be used in normal operations."""
         for key in self.filepaths:
             os.remove(self.filepaths[key])
 
     def reset_files(self):
-        """ Deletes and reinitializes all required files.
-        """
+        """Deletes and reinitializes all required files."""
         self.remove_files()
         self.init_files()
 
     def action_wrapper(self, event):
-        """ This wrapper ensures that failed events have their exceptions caught, which then triggers a rescheduling
+        """This wrapper ensures that failed events have their exceptions caught, which then triggers a rescheduling
         in an alternative retry queue. The maximum amount of retries can be set on the initialization of the scheduler.
 
         : param Event event: an object representing a scheduled event.
         """
         time, priority, action, argument, kwargs, attempts = event
-        automators = self.modules['automators'][action['module']].Automators(self.cfg, self.automation_config)
-        action = getattr(automators, '{}'.format(action['function']))
+        automators = self.modules["automators"][action["module"]].Automators(
+            self.cfg, self.automation_config
+        )
+        action = getattr(automators, "{}".format(action["function"]))
         try:
             if type(kwargs) is dict:
                 action(*argument, **kwargs)
             else:
                 action(*argument)
-        except Exception as e:
+        except Exception:
             self.logger.error(f"Event {event} failed with exception", exc_info=True)
 
     def enterabs(self, time, priority, action, argument=(), kwargs={}):
@@ -209,8 +233,10 @@ class EventScheduler(sched.scheduler):
         """
         for i in range(n_step):
             self.enter(time_step * (i + 1), 1, actionfunc, argument=arguments)
-            self.logger.info(f"Periodically scheduled {actionfunc} in {time_step * (i + 1)} " +
-                              f"seconds with arguments:\n {arguments}")
+            self.logger.info(
+                f"Periodically scheduled {actionfunc} in {time_step * (i + 1)} "
+                + f"seconds with arguments:\n {arguments}"
+            )
 
     def schedule_event(self, actionfunc, arguments, date):
         """
@@ -227,13 +253,26 @@ class EventScheduler(sched.scheduler):
         parsed_date = self.parse_time(date)
         time_step = self.get_time_difference(parsed_date)
         if time_step < 0:
-            self.logger.warning("Target time is in the past, please pick a time that is in the future.")
-            return(-1)
+            self.logger.warning(
+                "Target time is in the past, please pick a time that is in the future."
+            )
+            return -1
         if time_step >= 0:
             self.enter(time_step, 1, actionfunc, argument=arguments)
-            self.logger.info(f"Scheduled {actionfunc} in {time_step} seconds with arguments:\n {arguments}")
+            self.logger.info(
+                f"Scheduled {actionfunc} in {time_step} seconds with arguments:\n {arguments}"
+            )
 
-    def schedule_after_time(self, module_name, function_name, arguments, days=0, hours=0, minutes=0, n_step=1):
+    def schedule_after_time(
+        self,
+        module_name,
+        function_name,
+        arguments,
+        days=0,
+        hours=0,
+        minutes=0,
+        n_step=1,
+    ):
         """
         Schedule an event after a set amount of days, hours and/or minutes.
 
@@ -254,9 +293,13 @@ class EventScheduler(sched.scheduler):
 
         for i in range(n_step):
             self.enter(diff_seconds * (i + 1), 1, actionfunc, argument=arguments)
-            self.logger.info(f"Periodically scheduled {actionfunc} in {diff_seconds * (i + 1)} " +
-                             f"seconds with arguments:\n {arguments}")
-        self.logger.info(f"Scheduled {actionfunc} in after {diff_seconds} seconds with arguments:\n {arguments}")
+            self.logger.info(
+                f"Periodically scheduled {actionfunc} in {diff_seconds * (i + 1)} "
+                + f"seconds with arguments:\n {arguments}"
+            )
+        self.logger.info(
+            f"Scheduled {actionfunc} in after {diff_seconds} seconds with arguments:\n {arguments}"
+        )
 
     def get_time_difference(self, target_time):
         """
@@ -269,7 +312,7 @@ class EventScheduler(sched.scheduler):
         diff_seconds = diff.total_seconds()
         self.logger.debug(f"difference = {diff}")
 
-        return(diff_seconds)
+        return diff_seconds
 
     def parse_time(self, time_string):
         """
@@ -280,8 +323,7 @@ class EventScheduler(sched.scheduler):
 
         :param str time_string: string in earlier mentioned time-format.
         """
-        return(datetime.strptime(time_string, "%Y-%m-%d %H:%M:%S"))
-
+        return datetime.strptime(time_string, "%Y-%m-%d %H:%M:%S")
 
     def is_running(self):
         """
@@ -321,13 +363,13 @@ class EventScheduler(sched.scheduler):
         """
         Write the current heap to a pickle file atomically.
         """
-        filename = 'retry.pkl' if retry else 'queue.pkl'
-        temp_filename = filename + '.tmp'
+        filename = "retry.pkl" if retry else "queue.pkl"
+        temp_filename = filename + ".tmp"
         temp_path = os.path.join(self.path, temp_filename)
         final_path = os.path.join(self.path, filename)
-        
+
         try:
-            with open(temp_path, 'wb') as f:
+            with open(temp_path, "wb") as f:
                 # Write current time as a baseline for restoration
                 pickle.dump(self.timefunc(), f)
                 # Write each event individually to match restore_queue logic
@@ -339,11 +381,11 @@ class EventScheduler(sched.scheduler):
             if os.path.exists(temp_path):
                 try:
                     os.remove(temp_path)
-                except:
+                except Exception:
                     pass
 
     def backup(self, retry=False):
-        """ Backs up the main and retry queue by moving the contents to a backup file.
+        """Backs up the main and retry queue by moving the contents to a backup file.
         It will not perform the backup operation if the queue and the backup are identical.
 
         :param bool retry: causes retry filepaths to be used when enabled.
@@ -384,15 +426,15 @@ class EventScheduler(sched.scheduler):
                     if not (queue or retry):
                         self._running = False
                         break
-                    elif (queue and not retry):
+                    elif queue and not retry:
                         event = queue[0]
-                    elif (queue and retry):
+                    elif queue and retry:
                         if retry[0] >= queue[0]:
                             event = queue[0]
                         else:
                             event = retry[0]
                             retrying = True
-                    elif (not queue and retry):
+                    elif not queue and retry:
                         event = retry[0]
                         retrying = True
                     time = event.time
@@ -415,9 +457,13 @@ class EventScheduler(sched.scheduler):
                         delayfunc(10)
                 else:
                     # Implement some kind of threading.excepthook implementation to catch bad executions
-                    action_thread = threading.Thread(target=self.action_wrapper, args=[event], kwargs={})
+                    action_thread = threading.Thread(
+                        target=self.action_wrapper, args=[event], kwargs={}
+                    )
                     self.threads.append(action_thread)
                     action_thread.start()
-                    self.logger.info(f"Starting task: target = {event.action}, " +
-                                     f"args={event.argument}, kwargs={event.kwargs}")
-                    delayfunc(0)   # Let other threads run
+                    self.logger.info(
+                        f"Starting task: target = {event.action}, "
+                        + f"args={event.argument}, kwargs={event.kwargs}"
+                    )
+                    delayfunc(0)  # Let other threads run

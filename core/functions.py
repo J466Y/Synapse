@@ -7,7 +7,8 @@ import yaml
 
 logger = logging.getLogger(__name__)
 currentPath = os.path.dirname(os.path.abspath(__file__))
-app_dir = currentPath + '/..'
+app_dir = currentPath + "/.."
+
 
 def getYamlFiles(dir_name):
     dir_list = os.listdir(dir_name)
@@ -19,22 +20,24 @@ def getYamlFiles(dir_name):
             yaml_files = yaml_files + getYamlFiles(file_path)
         else:
             # Only add file when it is a yaml file
-            if os.path.splitext(file_path)[1] == '.yml':
+            if os.path.splitext(file_path)[1] == ".yml":
                 yaml_files.append(file_path)
     return yaml_files
 
+
 def readYamlFile(file_name):
     # Load any yaml file with safe load
-    with open(file_name, 'r') as stream:
+    with open(file_name, "r") as stream:
         try:
             return yaml.safe_load(stream)
-        except yaml.YAMLError as exc:
-            logger.error('%s', __name__, exc_info=True)
+        except yaml.YAMLError:
+            logger.error("%s", __name__, exc_info=True)
+
 
 def getConf():
-    logger.debug('%s.getConf starts', __name__)
+    logger.debug("%s.getConf starts", __name__)
 
-    confPath = app_dir + '/conf/synapse.conf'
+    confPath = app_dir + "/conf/synapse.conf"
     try:
         cfg = YamlCP
         cfg.config = readYamlFile(confPath)
@@ -42,11 +45,12 @@ def getConf():
             logger.error("Configuration not loaded successfully")
             raise Exception
         return cfg
-    except Exception as e:
-        logger.error('%s', __name__, exc_info=True)
+    except Exception:
+        logger.error("%s", __name__, exc_info=True)
+
 
 def loadAutomationConfiguration(path=None):
-    autom_config = {'automation_ids': {}}
+    autom_config = {"automation_ids": {}}
 
     # Load automation configuration
     if path:
@@ -59,12 +63,16 @@ def loadAutomationConfiguration(path=None):
 
     # Read use case files one by one and add them to the configuration variable
     for autom_file in autom_files:
-        logger.info('autom_file: {}'.format(autom_file))
+        logger.info("autom_file: {}".format(autom_file))
         autom_yml_file = readYamlFile(autom_file)
         # Add new values to the dict as a dict
-        autom_config['automation_ids'] = {**autom_config['automation_ids'], **autom_yml_file}
+        autom_config["automation_ids"] = {
+            **autom_config["automation_ids"],
+            **autom_yml_file,
+        }
 
     return autom_config
+
 
 def typeCheck(test_object, test_type, name):
     if isinstance(test_type, list):
@@ -72,8 +80,10 @@ def typeCheck(test_object, test_type, name):
         for test in test_type:
             matches.append(isinstance(test_object, test))
         if True not in matches:
-            logger.error(f'{name} is of type: {type(test_object)} while any of {test_type} was expected.')
-            logger.error(f'{name}: {test_object}')
+            logger.error(
+                f"{name} is of type: {type(test_object)} while any of {test_type} was expected."
+            )
+            logger.error(f"{name}: {test_object}")
             raise TypeError
         else:
             pass
@@ -81,9 +91,12 @@ def typeCheck(test_object, test_type, name):
         if isinstance(test_object, test_type):
             pass
         else:
-            logger.error(f'{name} is of type: {type(test_object)} while a {test_type} was expected.')
-            logger.error(f'{name}: {test_object}')
+            logger.error(
+                f"{name} is of type: {type(test_object)} while a {test_type} was expected."
+            )
+            logger.error(f"{name}: {test_object}")
             raise TypeError
+
 
 def retrieveSplittedDescription(description):
     enrichment_part_of_description = description.split("#### Enriched data")
@@ -92,10 +105,11 @@ def retrieveSplittedDescription(description):
     else:
         return None
 
+
 class YamlCP:
     @classmethod
     def get(cls, section, key, **kwargs):
-        fallback = kwargs.get('fallback')
+        fallback = kwargs.get("fallback")
 
         section = cls.config.get(section)
         if section:
@@ -111,7 +125,7 @@ class YamlCP:
 
     @classmethod
     def getboolean(cls, section, key, **kwargs):
-        fallback = kwargs.get('fallback')
+        fallback = kwargs.get("fallback")
         return bool(cls.get(section, key, fallback=fallback))
 
     @classmethod

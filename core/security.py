@@ -3,6 +3,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 def sanitize_lucene(text):
     """
     Sanitizes a string for Lucene/Elasticsearch query_string.
@@ -10,11 +11,12 @@ def sanitize_lucene(text):
     """
     if not text:
         return ""
-    
+
     # List of Lucene special characters: + - && || ! ( ) { } [ ] ^ " ~ * ? : \ /
     # We escape them with a backslash
     special_chars = r'[+\-&|!(){}\[\]\^"~*?:\\]'
-    return re.sub(special_chars, r'\\\g<0>', str(text))
+    return re.sub(special_chars, r"\\\g<0>", str(text))
+
 
 def validate_numeric_id(val, name="ID"):
     """
@@ -25,8 +27,11 @@ def validate_numeric_id(val, name="ID"):
     try:
         return str(int(val))
     except (ValueError, TypeError):
-        logger.error(f"Security Validation Failed: {name} must be numeric, got {type(val)}")
+        logger.error(
+            f"Security Validation Failed: {name} must be numeric, got {type(val)}"
+        )
         raise ValueError(f"Invalid {name}: must be numeric")
+
 
 def sanitize_aql_string(text):
     """
@@ -36,6 +41,7 @@ def sanitize_aql_string(text):
     if not text:
         return ""
     return str(text).replace("'", "''")
+
 
 def is_valid_fqdn(text):
     """
@@ -51,5 +57,5 @@ def is_valid_fqdn(text):
     # 4. Length limits per segment (63) and total (253)
     if len(text) > 253:
         return False
-    fqdn_regex = r'^(?![0-9]+$)(?!-)[a-zA-Z0-9-]{1,63}(?<!-)(\.[a-zA-Z0-9-]{1,63}(?<!-))*\.[a-zA-Z]{2,63}$'
+    fqdn_regex = r"^(?![0-9]+$)(?!-)[a-zA-Z0-9-]{1,63}(?<!-)(\.[a-zA-Z0-9-]{1,63}(?<!-))*\.[a-zA-Z]{2,63}$"
     return bool(re.match(fqdn_regex, text))
