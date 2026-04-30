@@ -5,6 +5,7 @@ import logging
 import copy
 import json
 import datetime
+import ipaddress
 from core.integration import Main
 from thehive4py.query import And, Eq
 from modules.FortiEDR.connector import FortiEDRConnector
@@ -56,14 +57,18 @@ class Integration(Main):
         # IP handling (Try deviceIp from doc, fallback to 'ip' seen in some logs)
         device_ip = collector.get("deviceIp") or collector.get("ip")
         if device_ip:
-            artifacts.append(
-                {
-                    "data": device_ip,
-                    "dataType": "ip",
-                    "message": "Endpoint IP",
-                    "tags": ["FortiEDR", "endpoint"],
-                }
-            )
+            try:
+                ipaddress.ip_address(str(device_ip))
+                artifacts.append(
+                    {
+                        "data": device_ip,
+                        "dataType": "ip",
+                        "message": "Endpoint IP",
+                        "tags": ["FortiEDR", "endpoint"],
+                    }
+                )
+            except ValueError:
+                self.logger.debug(f"Skipping non-IP device IP: {device_ip}")
         enriched["deviceIp"] = device_ip
 
         # 3. Collector Group
@@ -121,14 +126,18 @@ class Integration(Main):
 
         if isinstance(dests, list):
             for dest in dests:
-                artifacts.append(
-                    {
-                        "data": dest,
-                        "dataType": "ip",
-                        "message": "Destination IP",
-                        "tags": ["FortiEDR", "destination"],
-                    }
-                )
+                try:
+                    ipaddress.ip_address(str(dest))
+                    artifacts.append(
+                        {
+                            "data": dest,
+                            "dataType": "ip",
+                            "message": "Destination IP",
+                            "tags": ["FortiEDR", "destination"],
+                        }
+                    )
+                except ValueError:
+                    self.logger.debug(f"Skipping non-IP destination: {dest}")
 
         # 8. User discovery
         users = event.get("loggedUsers", [])

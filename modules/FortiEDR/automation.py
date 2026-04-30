@@ -1,4 +1,5 @@
 import logging
+import ipaddress
 from modules.FortiEDR.connector import FortiEDRConnector
 
 
@@ -144,12 +145,29 @@ class Automation:
                     # 2. Scoping destinations/users from event if not in artifacts
                     if not destinations:
                         dests = original_event.get("destinations", [])
-                        if isinstance(dests, list) and len(dests) > 0:
-                            destinations = dests
+                        valid_dests = []
+                        if isinstance(dests, list):
+                            for d in dests:
+                                try:
+                                    ipaddress.ip_address(str(d))
+                                    valid_dests.append(d)
+                                except ValueError:
+                                    self.logger.debug(
+                                        f"Filtering out non-IP destination: {d}"
+                                    )
+
+                        if valid_dests:
+                            destinations = valid_dests
                         else:
                             edest = original_event.get("destinationIp")
                             if edest:
-                                destinations = [edest]
+                                try:
+                                    ipaddress.ip_address(str(edest))
+                                    destinations = [edest]
+                                except ValueError:
+                                    self.logger.debug(
+                                        f"Filtering out non-IP destinationIp: {edest}"
+                                    )
 
                     if not users:
                         user_list = original_event.get("loggedUsers", [])
@@ -186,7 +204,6 @@ class Automation:
 
                 # Check if any destinations are internal and add 'internal destinations' if so
                 if destinations:
-                    import ipaddress
 
                     has_internal = False
                     for d in destinations:
