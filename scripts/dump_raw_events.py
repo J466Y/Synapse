@@ -76,6 +76,7 @@ if __name__ == "__main__":
         logger.warning("QRadar module is disabled in synapse.conf")
         
     if cfg.getboolean("Darktrace", "enabled", fallback=False):
-        dump_darktrace(cfg)
+        #dump_darktrace(cfg)
+        pass
     else:
         logger.warning("Darktrace module is disabled in synapse.conf")

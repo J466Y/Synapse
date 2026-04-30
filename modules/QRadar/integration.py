@@ -6,6 +6,7 @@ import json
 import re
 from core.integration import Main
 from thehive4py.query import And, Eq
+from core.mitre import MitreMapper
 from modules.QRadar.connector import QRadarConnector
 from modules.TheHive.connector import TheHiveConnector
 from time import sleep
@@ -17,6 +18,7 @@ class Integration(Main):
         super().__init__()
         self.qradarConnector = QRadarConnector(self.cfg)
         self.TheHiveConnector = TheHiveConnector(self.cfg)
+        self.mitreMapper = MitreMapper(self.cfg)
         self.TheHiveConnector.test_connection()
 
     def enrichOffense(self, offense):
@@ -206,19 +208,26 @@ class Integration(Main):
 
         # Check if the mitre ids need to be extracted
         if self.cfg.getboolean("QRadar", "extract_mitre_ids"):
+            # 1. Use the new MitreMapper for robust CSV/JSON mapping
+            mitre_tags = self.mitreMapper.get_qradar_mitre_tags(offense.get("rules", []))
+            if mitre_tags:
+                tags.extend(mitre_tags)
+                self.logger.info("Added MITRE tags via MitreMapper: {}".format(mitre_tags))
+
+            # 2. Keep the legacy regex extraction as fallback or additional source
             # Extract mitre tactics
             offense["mitre_tactics"] = self.tagExtractor(
                 offense, ["rules"], [r"[tT][aA]\d{4}"]
             )
             if "mitre_tactics" in offense:
-                tags.extend(offense["mitre_tactics"])
+                tags.extend([t for t in offense["mitre_tactics"] if t not in tags])
 
             # Extract mitre techniques
             offense["mitre_techniques"] = self.tagExtractor(
                 offense, ["rules"], [r"[tT]\d{4}"]
             )
             if "mitre_techniques" in offense:
-                tags.extend(offense["mitre_techniques"])
+                tags.extend([t for t in offense["mitre_techniques"] if t not in tags])
 
         if "categories" in offense:
             for cat in offense["categories"]:

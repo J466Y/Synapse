@@ -7,6 +7,7 @@ import json
 import datetime
 from core.integration import Main
 from thehive4py.query import And, Eq
+from core.mitre import MitreMapper
 from modules.Darktrace.connector import DarktraceConnector
 from modules.TheHive.connector import TheHiveConnector
 
@@ -19,6 +20,7 @@ class Integration(Main):
         self.logger = logging.getLogger(__name__)
         self.connector = DarktraceConnector(self.cfg)
         self.theHiveConnector = TheHiveConnector(self.cfg)
+        self.mitreMapper = MitreMapper(self.cfg)
         # Verify connection to TheHive as well
         self.theHiveConnector.test_connection()
 
@@ -232,6 +234,23 @@ class Integration(Main):
             artifacts=breach.get("artifacts", []),
             caseTemplate=case_template,
         )
+
+        # Map MITRE TTPs to tags using MitreMapper
+        # The API already provides techniques and tactics, but we use the mapper
+        # to ensure we get the correct phase names from the JSON and format them consistently.
+        model_obj = breach.get("model", {})
+        target_model = model_obj.get("then") or model_obj.get("now") or model_obj
+        mitre_data = target_model.get("mitre", {})
+        if mitre_data:
+            mitre_tags = self.mitreMapper.get_darktrace_mitre_tags(mitre_data)
+            if mitre_tags:
+                current_tags = alert.get("tags", [])
+                for tag in mitre_tags:
+                    if tag not in current_tags:
+                        current_tags.append(tag)
+                alert["tags"] = current_tags
+                self.logger.info("Added MITRE tags to Darktrace alert: {}".format(mitre_tags))
+
         return alert
 
     def validateRequest(self, request):
